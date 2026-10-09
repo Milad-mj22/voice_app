@@ -31,14 +31,6 @@
     logEl.scrollTop = logEl.scrollHeight;
   }
 
-  function clearLog() {
-    if (!logEl) return;
-    logEl.innerHTML = `
-      <div class="voice-line voice-line-empty">
-        اینجا گفتگو نمایش داده می‌شه…
-      </div>`;
-  }
-
   function playAudio(b64) {
     if (!b64) return;
     try {
@@ -57,6 +49,12 @@
     const r = action.result || {};
     if (r.ok === false) return r.error || "خطا در عملیات";
     return r.message || action.name;
+  }
+
+  function getCSRFToken() {
+    if (window.CSRF_TOKEN) return window.CSRF_TOKEN;
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : "";
   }
 
   // ═══════════ ضبط صدا ═══════════
@@ -99,11 +97,6 @@
     isBusy = false;
   }
 
-    isBusy = true;
-    await sendToServer(blob);
-    isBusy = false;
-  }
-
   // ═══════════ ارسال به سرور ═══════════
   async function sendToServer(blob, extension, mimeType) {
     const fd = new FormData();
@@ -136,23 +129,15 @@
         return;
       }
 
-      if (data.transcript) {
-        addLine("user", "🗣 " + data.transcript);
-      }
+      if (data.transcript) addLine("user", "🗣 " + data.transcript);
 
       if (data.actions && data.actions.length) {
-        data.actions.forEach(a => {
-          addLine("action", "⚙️ " + formatAction(a));
-        });
+        data.actions.forEach(a => addLine("action", "⚙️ " + formatAction(a)));
       }
 
-      if (data.reply) {
-        addLine("reply", "💬 " + data.reply);
-      }
+      if (data.reply) addLine("reply", "💬 " + data.reply);
 
-      if (data.audio) {
-        playAudio(data.audio);
-      }
+      if (data.audio) playAudio(data.audio);
 
       setStatus("✅ انجام شد", "ok");
 
@@ -165,13 +150,6 @@
       setStatus("خطا در ارتباط با سرور", "error");
       addLine("error", "❌ " + e.message);
     }
-  }
-  function getCSRFToken() {
-    // اول از window.CSRF_TOKEN
-    if (window.CSRF_TOKEN) return window.CSRF_TOKEN;
-    // بعد از کوکی
-    const m = document.cookie.match(/csrftoken=([^;]+)/);
-    return m ? m[1] : "";
   }
 
   // ═══════════ رویدادها ═══════════
