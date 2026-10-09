@@ -1,0 +1,5692 @@
+======================================================================
+گزارش کد پروژه
+تعداد فایل‌ها: 63
+======================================================================
+
+
+======================================================================
+📄 فایل 1/63: apps\accounts\admin.py
+📏 5 خط
+======================================================================
+
+from django.contrib import admin
+from .models import Business, User
+
+admin.site.register(Business)
+admin.site.register(User)
+
+
+======================================================================
+📄 فایل 2/63: apps\accounts\context_processors.py
+📏 5 خط
+======================================================================
+
+def business_context(request):
+    """دسترسی Business به همه‌ی تمپلیت‌ها"""
+    return {
+        "current_business": getattr(request, "business", None),
+    }
+
+
+======================================================================
+📄 فایل 3/63: apps\accounts\forms.py
+📏 95 خط
+======================================================================
+
+from django import forms
+from django.contrib.auth.forms import UserCreationForm
+from .models import Business, User
+
+
+class BusinessForm(forms.ModelForm):
+    """فرم تنظیمات کسب‌وکار"""
+    class Meta:
+        model = Business
+        fields = ["name", "slug", "logo", "brand_color", "phone", "address"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-input"}),
+            "slug": forms.TextInput(attrs={"class": "form-input", "dir": "ltr"}),
+            "brand_color": forms.TextInput(attrs={"type": "color", "class": "form-color"}),
+            "phone": forms.TextInput(attrs={"class": "form-input", "dir": "ltr"}),
+            "address": forms.Textarea(attrs={"class": "form-input", "rows": 3}),
+        }
+
+
+class RegisterForm(UserCreationForm):
+    """فرم ثبت‌نام کسب‌وکار جدید"""
+    business_name = forms.CharField(
+        label="نام کسب‌وکار",
+        max_length=100,
+        widget=forms.TextInput(attrs={"class": "form-input", "placeholder": "مثلاً برق مرداس"}),
+    )
+    phone = forms.CharField(
+        label="شماره موبایل",
+        max_length=15,
+        widget=forms.TextInput(attrs={"class": "form-input", "dir": "ltr", "placeholder": "09123456789"}),
+    )
+
+    class Meta:
+        model = User
+        fields = ["username", "email", "password1", "password2"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, field in self.fields.items():
+            css = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = (css + " form-input").strip()
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.phone = self.cleaned_data["phone"]
+        user.role = "owner"
+        if commit:
+            user.save()
+        return user
+
+
+class UserForm(forms.ModelForm):
+    """فرم افزودن/ویرایش کاربر توسط مالک"""
+    password = forms.CharField(
+        label="رمز عبور",
+        required=False,
+        widget=forms.PasswordInput(attrs={"class": "form-input"}),
+        help_text="برای کاربر جدید الزامی است. برای ویرایش، خالی بگذارید.",
+    )
+
+    class Meta:
+        model = User
+        fields = ["username", "first_name", "last_name", "email", "phone", "role"]
+        widgets = {
+            "username": forms.TextInput(attrs={"class": "form-input", "dir": "ltr"}),
+            "first_name": forms.TextInput(attrs={"class": "form-input"}),
+            "last_name": forms.TextInput(attrs={"class": "form-input"}),
+            "email": forms.EmailInput(attrs={"class": "form-input", "dir": "ltr"}),
+            "phone": forms.TextInput(attrs={"class": "form-input", "dir": "ltr"}),
+            "role": forms.Select(attrs={"class": "form-input"}),
+        }
+
+    def save(self, commit=True, business=None):
+        user = super().save(commit=False)
+        pwd = self.cleaned_data.get("password")
+        if pwd:
+            user.set_password(pwd)
+        if business:
+            user.business = business
+        if commit:
+            user.save()
+        return user
+
+
+class ProfileForm(forms.ModelForm):
+    """فرم پروفایل خود کاربر"""
+    class Meta:
+        model = User
+        fields = ["first_name", "last_name", "email", "phone"]
+        widgets = {
+            "first_name": forms.TextInput(attrs={"class": "form-input"}),
+            "last_name": forms.TextInput(attrs={"class": "form-input"}),
+            "email": forms.EmailInput(attrs={"class": "form-input", "dir": "ltr"}),
+            "phone": forms.TextInput(attrs={"class": "form-input", "dir": "ltr"}),
+        }
+
+
+======================================================================
+📄 فایل 4/63: apps\accounts\middleware.py
+📏 30 خط
+======================================================================
+
+from .models import Business
+
+
+class BusinessMiddleware:
+    """
+    تشخیص کسب‌وکار از روی slug توی URL
+    مثال: merdas.mykaman.ir/ali/dashboard/
+    → request.business = Business(slug='ali')
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        request.business = None
+
+        # اگه کاربر لاگین کرده، business خودش رو داره
+        if request.user.is_authenticated and request.user.business_id:
+            request.business = request.user.business
+
+        # اگه توی URL یه slug هست، از اون استفاده کن
+        resolver = getattr(request, "resolver_match", None)
+        if resolver:
+            slug = resolver.kwargs.get("business_slug")
+            if slug:
+                biz = Business.objects.filter(slug=slug, is_active=True).first()
+                if biz:
+                    request.business = biz
+
+        return self.get_response(request)
+
+
+======================================================================
+📄 فایل 5/63: apps\accounts\models.py
+📏 58 خط
+======================================================================
+
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+from django.utils.text import slugify
+
+
+class Business(models.Model):
+    """هر کسب‌وکار یک پنل اختصاصی داره"""
+    name = models.CharField("نام کسب‌وکار", max_length=100)
+    slug = models.SlugField("شناسه URL", max_length=60, unique=True)
+    logo = models.ImageField("لوگو", upload_to="logos/", blank=True, null=True)
+    brand_color = models.CharField("رنگ برند", max_length=7, default="#2563eb")
+    phone = models.CharField("تلفن", max_length=20, blank=True)
+    address = models.TextField("آدرس", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "کسب‌وکار"
+        verbose_name_plural = "کسب‌وکارها"
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name, allow_unicode=True)
+        super().save(*args, **kwargs)
+
+
+class User(AbstractUser):
+    """کاربر سیستم — هر کاربر به یک کسب‌وکار تعلق داره"""
+
+    ROLE_CHOICES = [
+        ("owner", "مالک"),
+        ("admin", "مدیر"),
+        ("sales", "فروش"),
+        ("accountant", "حسابدار"),
+        ("viewer", "بیننده"),
+    ]
+
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="users",
+        null=True, blank=True,
+        verbose_name="کسب‌وکار",
+    )
+    role = models.CharField(
+        "نقش", max_length=20, choices=ROLE_CHOICES, default="owner"
+    )
+    phone = models.CharField("موبایل", max_length=15, blank=True)
+
+    class Meta:
+        verbose_name = "کاربر"
+        verbose_name_plural = "کاربران"
+
+    def __str__(self):
+        return self.get_full_name() or self.username
+
+
+======================================================================
+📄 فایل 6/63: apps\accounts\urls.py
+📏 27 خط
+======================================================================
+
+from django.urls import path
+from django.contrib.auth import views as auth_views
+from . import views
+
+urlpatterns = [
+    # ورود / خروج
+    path("login/", auth_views.LoginView.as_view(
+        template_name="accounts/login.html"
+    ), name="login"),
+    path("logout/", views.logout_view, name="logout"),
+    path("register/", views.register_view, name="register"),
+
+    # تنظیمات کسب‌وکار
+    path("settings/", views.settings_view, name="accounts_settings"),
+
+    # مدیریت کاربران
+    path("users/", views.users_view, name="accounts_users"),
+    path("users/new/", views.user_create_view, name="accounts_user_create"),
+    path("users/<int:pk>/edit/", views.user_edit_view, name="accounts_user_edit"),
+    path("users/<int:pk>/delete/", views.user_delete_view, name="accounts_user_delete"),
+
+    # پروفایل
+    path("profile/", views.profile_view, name="accounts_profile"),
+
+    # API
+    path("api/upload-logo/", views.upload_logo_view, name="accounts_upload_logo"),
+]
+
+
+======================================================================
+📄 فایل 7/63: apps\accounts\views.py
+📏 238 خط
+======================================================================
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import login, logout, update_session_auth_hash
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib import messages
+from django.http import JsonResponse
+from django.utils.text import slugify
+from django.views.decorators.http import require_POST
+
+from .models import Business, User
+from .forms import BusinessForm, RegisterForm, UserForm, ProfileForm
+
+
+# ============================================================
+# احراز هویت
+# ============================================================
+
+def register_view(request):
+    """ثبت‌نام کسب‌وکار جدید + ساخت Owner"""
+    if request.user.is_authenticated:
+        return redirect("/")
+
+    if request.method == "POST":
+        form = RegisterForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+
+            # ساخت Business
+            biz_name = form.cleaned_data["business_name"]
+            base_slug = slugify(biz_name, allow_unicode=True) or f"biz-{user.id}"
+            slug = base_slug
+            i = 2
+            while Business.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{i}"
+                i += 1
+
+            business = Business.objects.create(
+                name=biz_name,
+                slug=slug,
+                phone=form.cleaned_data["phone"],
+            )
+            user.business = business
+            user.save()
+
+            login(request, user)
+            messages.success(request, "خوش آمدید! کسب‌وکار شما ساخته شد.")
+            return redirect("/")
+        else:
+            messages.error(request, "لطفاً خطاهای فرم را برطرف کنید.")
+    else:
+        form = RegisterForm()
+
+    return render(request, "accounts/register.html", {"form": form})
+
+
+def logout_view(request):
+    logout(request)
+    return redirect("/accounts/login/")
+
+
+# ============================================================
+# تنظیمات کسب‌وکار
+# ============================================================
+
+@login_required
+def settings_view(request):
+    """تنظیمات کسب‌وکار (فقط Owner/Admin)"""
+    business = getattr(request, "business", None) or request.user.business
+    if not business:
+        return redirect("/accounts/register/")
+
+    if request.user.role not in ("owner", "admin"):
+        messages.error(request, "شما دسترسی به این بخش ندارید.")
+        return redirect("/")
+
+    if request.method == "POST":
+        form = BusinessForm(request.POST, request.FILES, instance=business)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "تنظیمات ذخیره شد.")
+            return redirect("accounts_settings")
+    else:
+        form = BusinessForm(instance=business)
+
+    return render(request, "accounts/settings.html", {
+        "form": form,
+        "business": business,
+    })
+
+
+# ============================================================
+# مدیریت کاربران
+# ============================================================
+
+@login_required
+def users_view(request):
+    """لیست کاربران کسب‌وکار"""
+    business = getattr(request, "business", None) or request.user.business
+    if not business:
+        return redirect("/")
+
+    if request.user.role not in ("owner", "admin"):
+        messages.error(request, "دسترسی ندارید.")
+        return redirect("/")
+
+    users = User.objects.filter(business=business).order_by("-date_joined")
+    return render(request, "accounts/users.html", {
+        "users": users,
+        "business": business,
+    })
+
+
+@login_required
+def user_create_view(request):
+    """افزودن کاربر جدید"""
+    business = getattr(request, "business", None) or request.user.business
+    if not business or request.user.role not in ("owner", "admin"):
+        return redirect("/")
+
+    if request.method == "POST":
+        form = UserForm(request.POST)
+        if form.is_valid():
+            if not form.cleaned_data.get("password"):
+                messages.error(request, "برای کاربر جدید رمز عبور الزامی است.")
+            else:
+                form.save(business=business)
+                messages.success(request, "کاربر اضافه شد.")
+                return redirect("accounts_users")
+    else:
+        form = UserForm()
+
+    return render(request, "accounts/user_form.html", {
+        "form": form,
+        "title": "افزودن کاربر",
+    })
+
+
+@login_required
+def user_edit_view(request, pk):
+    """ویرایش کاربر"""
+    business = getattr(request, "business", None) or request.user.business
+    if not business or request.user.role not in ("owner", "admin"):
+        return redirect("/")
+
+    user_obj = get_object_or_404(User, pk=pk, business=business)
+
+    if request.method == "POST":
+        form = UserForm(request.POST, instance=user_obj)
+        if form.is_valid():
+            form.save(business=business)
+            messages.success(request, "کاربر ویرایش شد.")
+            return redirect("accounts_users")
+    else:
+        form = UserForm(instance=user_obj)
+
+    return render(request, "accounts/user_form.html", {
+        "form": form,
+        "title": "ویرایش کاربر",
+        "edit_user": user_obj,
+    })
+
+
+@login_required
+@require_POST
+def user_delete_view(request, pk):
+    """حذف کاربر"""
+    business = getattr(request, "business", None) or request.user.business
+    if not business or request.user.role not in ("owner", "admin"):
+        return JsonResponse({"error": "دسترسی ندارید."}, status=403)
+
+    user_obj = get_object_or_404(User, pk=pk, business=business)
+
+    if user_obj == request.user:
+        return JsonResponse({"error": "نمی‌تونی خودت رو حذف کنی."}, status=400)
+
+    if user_obj.role == "owner":
+        return JsonResponse({"error": "مالک قابل حذف نیست."}, status=400)
+
+    user_obj.delete()
+    return JsonResponse({"ok": True})
+
+
+# ============================================================
+# پروفایل خودم
+# ============================================================
+
+@login_required
+def profile_view(request):
+    """ویرایش پروفایل + تغییر رمز"""
+    profile_form = ProfileForm(instance=request.user)
+    password_form = PasswordChangeForm(request.user)
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        if action == "profile":
+            profile_form = ProfileForm(request.POST, instance=request.user)
+            if profile_form.is_valid():
+                profile_form.save()
+                messages.success(request, "پروفایل ذخیره شد.")
+                return redirect("accounts_profile")
+
+        elif action == "password":
+            password_form = PasswordChangeForm(request.user, request.POST)
+            if password_form.is_valid():
+                user = password_form.save()
+                update_session_auth_hash(request, user)
+                messages.success(request, "رمز عبور تغییر کرد.")
+                return redirect("accounts_profile")
+
+    return render(request, "accounts/profile.html", {
+        "profile_form": profile_form,
+        "password_form": password_form,
+    })
+
+
+# ============================================================
+# API: آپلود لوگو (Ajax)
+# ============================================================
+
+@login_required
+@require_POST
+def upload_logo_view(request):
+    """آپلود سریع لوگو با Ajax"""
+    business = getattr(request, "business", None) or request.user.business
+    if not business or request.user.role not in ("owner", "admin"):
+        return JsonResponse({"error": "دسترسی ندارید."}, status=403)
+
+    logo = request.FILES.get("logo")
+    if not logo:
+        return JsonResponse({"error": "فایلی انتخاب نشده."}, status=400)
+
+    if logo.size > 2 * 1024 * 1024:
+        return JsonResponse({"error": "حجم لوگو باید کمتر از ۲ مگابایت باشد."}, status=400)
+
+    business.logo = logo
+    business.save()
+    return JsonResponse({"ok": True, "url": business.logo.url})
+
+
+======================================================================
+📄 فایل 8/63: apps\crm\admin.py
+📏 65 خط
+======================================================================
+
+from django.contrib import admin
+from .models import (
+    Customer, Project, Opportunity, Task,
+    Finance, Supplier, Colleague, Competitor, Strategy,
+)
+
+
+@admin.register(Customer)
+class CustomerAdmin(admin.ModelAdmin):
+    list_display = ("title", "phone", "company", "status", "business", "created_at")
+    list_filter = ("status", "business")
+    search_fields = ("title", "phone", "company", "notes")
+
+
+@admin.register(Project)
+class ProjectAdmin(admin.ModelAdmin):
+    list_display = ("title", "customer", "status", "progress", "budget", "business")
+    list_filter = ("status", "business")
+    search_fields = ("title", "customer__title", "notes")
+
+
+@admin.register(Opportunity)
+class OpportunityAdmin(admin.ModelAdmin):
+    list_display = ("title", "customer", "stage", "amount", "probability", "business")
+    list_filter = ("stage", "business")
+    search_fields = ("title", "customer__title")
+
+
+@admin.register(Task)
+class TaskAdmin(admin.ModelAdmin):
+    list_display = ("title", "assignee", "priority", "due_date", "is_done", "business")
+    list_filter = ("priority", "is_done", "business")
+    search_fields = ("title", "notes")
+
+
+@admin.register(Finance)
+class FinanceAdmin(admin.ModelAdmin):
+    list_display = ("title", "type", "amount", "category", "business", "date")
+    list_filter = ("type", "category", "business")
+    search_fields = ("title", "notes")
+
+
+@admin.register(Supplier)
+class SupplierAdmin(admin.ModelAdmin):
+    list_display = ("title", "phone", "contact_person", "business")
+    search_fields = ("title", "phone", "products")
+
+
+@admin.register(Colleague)
+class ColleagueAdmin(admin.ModelAdmin):
+    list_display = ("title", "position", "phone", "business")
+    list_filter = ("position", "business")
+    search_fields = ("title", "phone", "responsibilities")
+
+
+@admin.register(Competitor)
+class CompetitorAdmin(admin.ModelAdmin):
+    list_display = ("title", "phone", "website", "business")
+    search_fields = ("title", "notes")
+
+
+@admin.register(Strategy)
+class StrategyAdmin(admin.ModelAdmin):
+    list_display = ("title", "business", "created_at")
+    search_fields = ("title", "mission", "vision", "goals")
+
+
+======================================================================
+📄 فایل 9/63: apps\crm\analytics_helpers.py
+📏 69 خط
+======================================================================
+
+"""
+توابع کمکی گزارش‌ها (بدون وابستگی به dashboard)
+"""
+from calendar import monthrange
+from django.db.models import Sum
+from django.utils import timezone
+from .models import Customer, Task, Finance
+
+
+def _fa_month(m):
+    return ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد",
+            "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن",
+            "اسفند"][m - 1]
+
+
+def _fa_weekday(w):
+    # پایتون: دوشنبه=0 ... یکشنبه=6
+    return ["دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه",
+            "جمعه", "شنبه", "یکشنبه"][w]
+
+
+def monthly_finance(business, months=6):
+    from datetime import timedelta
+    today = timezone.localdate()
+    result = []
+    for i in range(months - 1, -1, -1):
+        y = today.year
+        m = today.month - i
+        while m <= 0:
+            m += 12
+            y -= 1
+        first = today.replace(year=y, month=m, day=1)
+        last_day = monthrange(y, m)[1]
+        last = today.replace(year=y, month=m, day=last_day)
+
+        inc = Finance.objects.filter(
+            business=business, type="درآمد",
+            date__gte=first, date__lte=last
+        ).aggregate(s=Sum("amount"))["s"] or 0
+        exp = Finance.objects.filter(
+            business=business, type="هزینه",
+            date__gte=first, date__lte=last
+        ).aggregate(s=Sum("amount"))["s"] or 0
+
+        result.append({
+            "label": _fa_month(m),
+            "income": int(inc),
+            "expense": int(exp),
+        })
+    return result
+
+
+def weekly_activity(business):
+    from datetime import timedelta
+    today = timezone.localdate()
+    days = []
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i)
+        days.append({
+            "date": d.isoformat(),
+            "label": _fa_weekday(d.weekday()),
+            "customers": Customer.objects.filter(
+                business=business, created_at__date=d
+            ).count(),
+            "tasks": Task.objects.filter(
+                business=business, created_at__date=d
+            ).count(),
+        })
+    return days
+
+
+======================================================================
+📄 فایل 10/63: apps\crm\api.py
+📏 312 خط
+======================================================================
+
+"""
+API ساده برای CRUD روی مدل‌های CRM
+"""
+import json
+from django.http import JsonResponse, HttpResponse
+from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.http import require_http_methods
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import get_object_or_404
+from django.db.models import Q
+
+from .models import (
+    Customer, Project, Opportunity, Task, Finance,
+    Supplier, Colleague, Competitor, Strategy,
+)
+
+
+# ---------- نگاشت نوع → مدل ----------
+TYPE_TO_MODEL = {
+    "customer": Customer,
+    "project": Project,
+    "opportunity": Opportunity,
+    "task": Task,
+    "finance": Finance,
+    "supplier": Supplier,
+    "colleague": Colleague,
+    "competitor": Competitor,
+    "strategy": Strategy,
+    # نام‌های ماژول‌ها به مدل‌ها
+    "sales": Customer,
+    "delivery": Project,
+    "hr": Colleague,
+    "operations": Supplier,
+    "growth": Opportunity,
+}
+
+TYPE_LABELS = {
+    "customer": "مشتری",
+    "project": "پروژه",
+    "opportunity": "فرصت فروش",
+    "task": "پیگیری",
+    "finance": "مالی",
+    "supplier": "تأمین‌کننده",
+    "colleague": "همکار",
+    "competitor": "رقیب",
+    "strategy": "استراتژی",
+}
+
+
+def _get_business(request):
+    business = getattr(request, "business", None) or getattr(request.user, "business", None)
+    return business
+
+
+def _serialize(obj):
+    """تبدیل رکورد به dict"""
+    data = {
+        "id": obj.id,
+        "title": obj.title,
+        "status": getattr(obj, "status", ""),
+        "notes": getattr(obj, "notes", ""),
+        "date": obj.date.isoformat() if getattr(obj, "date", None) else None,
+        "created_at": obj.created_at.isoformat() if hasattr(obj, "created_at") else None,
+    }
+    # فیلدهای اختیاری
+    for f in ("phone", "company", "email", "address", "amount", "type", "category",
+              "priority", "is_done", "progress", "budget", "stage", "probability",
+              "position", "website", "source", "tags"):
+        if hasattr(obj, f):
+            v = getattr(obj, f)
+            if hasattr(v, "isoformat"):
+                v = v.isoformat()
+            elif v is not None and not isinstance(v, (str, int, float, bool, list, dict)):
+                v = str(v)
+            data[f] = v
+    return data
+
+
+# ============================================================
+# لیست / ساخت
+# ============================================================
+
+@login_required
+@require_http_methods(["GET", "POST"])
+@csrf_protect
+def records_view(request, record_type):
+    business = _get_business(request)
+    if not business:
+        return JsonResponse({"error": "کسب‌وکار پیدا نشد."}, status=400)
+
+    model = TYPE_TO_MODEL.get(record_type)
+    if not model:
+        return JsonResponse({"error": "نوع نامعتبر."}, status=404)
+
+    if request.method == "GET":
+        qs = model.objects.filter(business=business)
+        return JsonResponse([_serialize(o) for o in qs], safe=False)
+
+    # POST
+    try:
+        body = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "JSON نامعتبر."}, status=400)
+
+    title = (body.get("title") or "").strip()
+    if not title:
+        return JsonResponse({"error": "عنوان الزامی است."}, status=400)
+
+    fields = {"business": business, "created_by": request.user, "title": title}
+    for f in ("status", "notes", "phone", "company", "email", "address",
+              "category", "priority", "stage", "type", "position", "website",
+              "source", "tags"):
+        if f in body and hasattr(model, f):
+            fields[f] = body[f]
+    if body.get("date"):
+        fields["date"] = body["date"]
+
+    obj = model.objects.create(**fields)
+    return JsonResponse(_serialize(obj), status=201)
+
+
+# ============================================================
+# جزئیات / ویرایش / حذف
+# ============================================================
+
+@login_required
+@require_http_methods(["GET", "PUT", "DELETE"])
+@csrf_protect
+def record_detail_view(request, record_type, pk):
+    business = _get_business(request)
+    if not business:
+        return JsonResponse({"error": "کسب‌وکار پیدا نشد."}, status=400)
+
+    model = TYPE_TO_MODEL.get(record_type)
+    if not model:
+        return JsonResponse({"error": "نوع نامعتبر."}, status=404)
+
+    obj = get_object_or_404(model, pk=pk, business=business)
+
+    if request.method == "GET":
+        return JsonResponse(_serialize(obj))
+
+    if request.method == "DELETE":
+        obj.delete()
+        return JsonResponse({"ok": True})
+
+    # PUT
+    try:
+        body = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "JSON نامعتبر."}, status=400)
+
+    for f in ("title", "status", "notes", "phone", "company", "email",
+              "address", "category", "priority", "stage", "type", "position",
+              "website", "source", "tags"):
+        if f in body and hasattr(model, f):
+            setattr(obj, f, body[f])
+    if "date" in body:
+        obj.date = body["date"] or None
+
+    obj.save()
+    return JsonResponse(_serialize(obj))
+
+
+# ============================================================
+# آمار
+# ============================================================
+
+@login_required
+def stats_view(request):
+    business = _get_business(request)
+    if not business:
+        return JsonResponse({"error": "کسب‌وکار پیدا نشد."}, status=400)
+    return JsonResponse({
+        "customers": Customer.objects.filter(business=business).count(),
+        "projects": Project.objects.filter(business=business).count(),
+        "opportunities": Opportunity.objects.filter(business=business).count(),
+        "tasks": Task.objects.filter(business=business, is_done=False).count(),
+    })
+
+
+# ============================================================
+# جستجوی سراسری
+# ============================================================
+
+@login_required
+def search_view(request):
+    business = _get_business(request)
+    if not business:
+        return JsonResponse({"error": "کسب‌وکار پیدا نشد."}, status=400)
+
+    q = (request.GET.get("q") or "").strip()
+    if not q:
+        return JsonResponse([])
+
+    results = []
+    for tkey, model in [
+        ("customer", Customer),
+        ("project", Project),
+        ("opportunity", Opportunity),
+        ("task", Task),
+        ("finance", Finance),
+    ]:
+        qs = model.objects.filter(business=business).filter(
+            Q(title__icontains=q) |
+            Q(notes__icontains=q) |
+            Q(company__icontains=q) if hasattr(model, "company") else Q(title__icontains=q)
+        )[:10]
+        for obj in qs:
+            results.append({
+                "id": obj.id,
+                "title": obj.title,
+                "type": tkey,
+                "type_label": TYPE_LABELS.get(tkey, tkey),
+                "company": getattr(obj, "company", "") or "",
+            })
+    return JsonResponse(results, safe=False)
+
+
+# ============================================================
+# خروجی JSON (پشتیبان)
+# ============================================================
+
+@login_required
+def export_view(request):
+    business = _get_business(request)
+    if not business:
+        return JsonResponse({"error": "کسب‌وکار پیدا نشد."}, status=400)
+
+    data = {}
+    for tkey, model in TYPE_TO_MODEL.items():
+        if tkey not in data:
+            data[tkey] = [_serialize(o) for o in model.objects.filter(business=business)]
+
+    payload = {
+        "version": 1,
+        "business": business.name,
+        "exported_at": __import__("datetime").datetime.now().isoformat(),
+        "data": data,
+    }
+    resp = HttpResponse(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        content_type="application/json; charset=utf-8",
+    )
+    resp["Content-Disposition"] = f'attachment; filename="backup-{business.slug}.json"'
+    return resp
+
+
+
+
+# ═══════════════════════════════════════════
+# API گزارش‌ها
+# ═══════════════════════════════════════════
+
+@login_required
+def report_pipeline_view(request):
+    """قیف فروش"""
+    from django.db.models import Sum
+    business = _get_business(request)
+    if not business:
+        return JsonResponse({"error": "کسب‌وکار پیدا نشد."}, status=400)
+
+    stages = ["سرنخ", "تماس اولیه", "نیازسنجی", "ارائه پیشنهاد",
+              "مذاکره", "برنده", "باخت"]
+    result = []
+    for st in stages:
+        qs = Opportunity.objects.filter(business=business, stage=st)
+        result.append({
+            "stage": st,
+            "count": qs.count(),
+            "amount": int(qs.aggregate(s=Sum("amount"))["s"] or 0),
+        })
+    return JsonResponse(result, safe=False)
+
+
+@login_required
+def report_monthly_view(request):
+    """روند مالی ۶ ماه"""
+    from .analytics_helpers import monthly_finance
+    business = _get_business(request)
+    if not business:
+        return JsonResponse({"error": "کسب‌وکار پیدا نشد."}, status=400)
+    return JsonResponse(monthly_finance(business, months=6), safe=False)
+
+
+@login_required
+def report_weekly_view(request):
+    """فعالیت هفتگی"""
+    from .analytics_helpers import weekly_activity
+    business = _get_business(request)
+    if not business:
+        return JsonResponse({"error": "کسب‌وکار پیدا نشد."}, status=400)
+    return JsonResponse(weekly_activity(business), safe=False)
+
+
+@login_required
+def report_top_customers_view(request):
+    """مشتریان برتر"""
+    from django.db.models import Sum, Q
+    business = _get_business(request)
+    if not business:
+        return JsonResponse({"error": "کسب‌وکار پیدا نشد."}, status=400)
+
+    qs = Customer.objects.filter(business=business).annotate(
+        total=Sum("transactions__amount",
+                  filter=Q(transactions__type="درآمد"))
+    ).filter(total__gt=0).order_by("-total")[:5]
+
+    return JsonResponse(
+        [{"title": c.title, "total": int(c.total or 0)} for c in qs],
+        safe=False,
+    )
+
+
+======================================================================
+📄 فایل 11/63: apps\crm\apps.py
+📏 7 خط
+======================================================================
+
+from django.apps import AppConfig
+
+
+class CrmConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.crm"
+    verbose_name = "مدیریت کسب‌وکار"
+
+
+======================================================================
+📄 فایل 12/63: apps\crm\migrations\0001_initial.py
+📏 240 خط
+======================================================================
+
+# Generated by Django 5.0.6 on 2026-10-08 17:28
+
+import django.db.models.deletion
+from django.conf import settings
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+        ('accounts', '0001_initial'),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='Colleague',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('title', models.CharField(max_length=200, verbose_name='عنوان / نام')),
+                ('status', models.CharField(default='جدید', max_length=50, verbose_name='وضعیت')),
+                ('date', models.DateField(blank=True, null=True, verbose_name='تاریخ')),
+                ('notes', models.TextField(blank=True, verbose_name='یادداشت')),
+                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')),
+                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='آخرین ویرایش')),
+                ('phone', models.CharField(blank=True, max_length=20, verbose_name='شماره تماس')),
+                ('position', models.CharField(blank=True, choices=[('مدیر', 'مدیر'), ('فروش', 'فروش'), ('فنی', 'فنی'), ('مالی', 'مالی'), ('پشتیبانی', 'پشتیبانی'), ('سایر', 'سایر')], max_length=100, verbose_name='سمت')),
+                ('responsibilities', models.TextField(blank=True, verbose_name='مسئولیت\u200cها')),
+                ('business', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='%(class)s_records', to='accounts.business', verbose_name='کسب\u200cوکار')),
+                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL, verbose_name='ثبت\u200cکننده')),
+                ('user_account', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='colleague_profile', to=settings.AUTH_USER_MODEL, verbose_name='حساب کاربری')),
+            ],
+            options={
+                'verbose_name': 'همکار',
+                'verbose_name_plural': 'همکاران',
+                'ordering': ['-created_at'],
+                'abstract': False,
+            },
+        ),
+        migrations.CreateModel(
+            name='Competitor',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('title', models.CharField(max_length=200, verbose_name='عنوان / نام')),
+                ('status', models.CharField(default='جدید', max_length=50, verbose_name='وضعیت')),
+                ('date', models.DateField(blank=True, null=True, verbose_name='تاریخ')),
+                ('notes', models.TextField(blank=True, verbose_name='یادداشت')),
+                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')),
+                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='آخرین ویرایش')),
+                ('phone', models.CharField(blank=True, max_length=20, verbose_name='شماره تماس')),
+                ('website', models.URLField(blank=True, verbose_name='وب\u200cسایت')),
+                ('strengths', models.TextField(blank=True, verbose_name='نقاط قوت')),
+                ('weaknesses', models.TextField(blank=True, verbose_name='نقاط ضعف')),
+                ('business', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='%(class)s_records', to='accounts.business', verbose_name='کسب\u200cوکار')),
+                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL, verbose_name='ثبت\u200cکننده')),
+            ],
+            options={
+                'verbose_name': 'رقیب',
+                'verbose_name_plural': 'رقبا',
+                'ordering': ['-created_at'],
+                'abstract': False,
+            },
+        ),
+        migrations.CreateModel(
+            name='Customer',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('title', models.CharField(max_length=200, verbose_name='عنوان / نام')),
+                ('status', models.CharField(default='جدید', max_length=50, verbose_name='وضعیت')),
+                ('date', models.DateField(blank=True, null=True, verbose_name='تاریخ')),
+                ('notes', models.TextField(blank=True, verbose_name='یادداشت')),
+                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')),
+                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='آخرین ویرایش')),
+                ('phone', models.CharField(blank=True, max_length=20, verbose_name='شماره تماس')),
+                ('company', models.CharField(blank=True, max_length=150, verbose_name='شرکت')),
+                ('email', models.EmailField(blank=True, max_length=254, verbose_name='ایمیل')),
+                ('address', models.TextField(blank=True, verbose_name='آدرس')),
+                ('source', models.CharField(blank=True, max_length=100, verbose_name='منبع آشنایی')),
+                ('tags', models.CharField(blank=True, help_text='با کاما جدا کن', max_length=200, verbose_name='برچسب\u200cها')),
+                ('business', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='%(class)s_records', to='accounts.business', verbose_name='کسب\u200cوکار')),
+                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL, verbose_name='ثبت\u200cکننده')),
+            ],
+            options={
+                'verbose_name': 'مشتری',
+                'verbose_name_plural': 'مشتریان',
+                'ordering': ['-created_at'],
+                'abstract': False,
+            },
+        ),
+        migrations.CreateModel(
+            name='Opportunity',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('title', models.CharField(max_length=200, verbose_name='عنوان / نام')),
+                ('status', models.CharField(default='جدید', max_length=50, verbose_name='وضعیت')),
+                ('date', models.DateField(blank=True, null=True, verbose_name='تاریخ')),
+                ('notes', models.TextField(blank=True, verbose_name='یادداشت')),
+                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')),
+                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='آخرین ویرایش')),
+                ('amount', models.DecimalField(blank=True, decimal_places=0, max_digits=15, null=True, verbose_name='مبلغ (تومان)')),
+                ('stage', models.CharField(choices=[('سرنخ', 'سرنخ'), ('تماس اولیه', 'تماس اولیه'), ('نیازسنجی', 'نیازسنجی'), ('ارائه پیشنهاد', 'ارائه پیشنهاد'), ('مذاکره', 'مذاکره'), ('برنده', 'برنده'), ('باخت', 'باخت')], default='سرنخ', max_length=50, verbose_name='مرحله فروش')),
+                ('probability', models.PositiveIntegerField(default=50, verbose_name='احتمال موفقیت (%)')),
+                ('expected_close', models.DateField(blank=True, null=True, verbose_name='تاریخ بستن احتمالی')),
+                ('business', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='%(class)s_records', to='accounts.business', verbose_name='کسب\u200cوکار')),
+                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL, verbose_name='ثبت\u200cکننده')),
+                ('customer', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='opportunities', to='crm.customer', verbose_name='مشتری')),
+            ],
+            options={
+                'verbose_name': 'فرصت فروش',
+                'verbose_name_plural': 'فرصت\u200cهای فروش',
+                'ordering': ['-created_at'],
+                'abstract': False,
+            },
+        ),
+        migrations.CreateModel(
+            name='Project',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('title', models.CharField(max_length=200, verbose_name='عنوان / نام')),
+                ('status', models.CharField(default='جدید', max_length=50, verbose_name='وضعیت')),
+                ('date', models.DateField(blank=True, null=True, verbose_name='تاریخ')),
+                ('notes', models.TextField(blank=True, verbose_name='یادداشت')),
+                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')),
+                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='آخرین ویرایش')),
+                ('start_date', models.DateField(blank=True, null=True, verbose_name='تاریخ شروع')),
+                ('end_date', models.DateField(blank=True, null=True, verbose_name='تاریخ پایان')),
+                ('budget', models.DecimalField(blank=True, decimal_places=0, max_digits=15, null=True, verbose_name='بودجه (تومان)')),
+                ('progress', models.PositiveIntegerField(default=0, verbose_name='درصد پیشرفت')),
+                ('business', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='%(class)s_records', to='accounts.business', verbose_name='کسب\u200cوکار')),
+                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL, verbose_name='ثبت\u200cکننده')),
+                ('customer', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='projects', to='crm.customer', verbose_name='مشتری')),
+            ],
+            options={
+                'verbose_name': 'پروژه',
+                'verbose_name_plural': 'پروژه\u200cها',
+                'ordering': ['-created_at'],
+                'abstract': False,
+            },
+        ),
+        migrations.CreateModel(
+            name='Finance',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('title', models.CharField(max_length=200, verbose_name='عنوان / نام')),
+                ('status', models.CharField(default='جدید', max_length=50, verbose_name='وضعیت')),
+                ('date', models.DateField(blank=True, null=True, verbose_name='تاریخ')),
+                ('notes', models.TextField(blank=True, verbose_name='یادداشت')),
+                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')),
+                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='آخرین ویرایش')),
+                ('type', models.CharField(choices=[('درآمد', 'درآمد'), ('هزینه', 'هزینه')], default='درآمد', max_length=20, verbose_name='نوع')),
+                ('amount', models.DecimalField(decimal_places=0, default=0, max_digits=15, verbose_name='مبلغ (تومان)')),
+                ('category', models.CharField(blank=True, max_length=100, verbose_name='دسته')),
+                ('business', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='%(class)s_records', to='accounts.business', verbose_name='کسب\u200cوکار')),
+                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL, verbose_name='ثبت\u200cکننده')),
+                ('customer', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='transactions', to='crm.customer', verbose_name='مشتری مرتبط')),
+                ('project', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='transactions', to='crm.project', verbose_name='پروژه مرتبط')),
+            ],
+            options={
+                'verbose_name': 'تراکنش مالی',
+                'verbose_name_plural': 'تراکنش\u200cهای مالی',
+                'ordering': ['-created_at'],
+                'abstract': False,
+            },
+        ),
+        migrations.CreateModel(
+            name='Strategy',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('title', models.CharField(max_length=200, verbose_name='عنوان / نام')),
+                ('status', models.CharField(default='جدید', max_length=50, verbose_name='وضعیت')),
+                ('date', models.DateField(blank=True, null=True, verbose_name='تاریخ')),
+                ('notes', models.TextField(blank=True, verbose_name='یادداشت')),
+                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')),
+                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='آخرین ویرایش')),
+                ('mission', models.TextField(blank=True, verbose_name='ماموریت')),
+                ('vision', models.TextField(blank=True, verbose_name='چشم\u200cانداز')),
+                ('goals', models.TextField(blank=True, verbose_name='اهداف')),
+                ('kpis', models.TextField(blank=True, verbose_name='شاخص\u200cهای کلیدی (KPI)')),
+                ('business', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='%(class)s_records', to='accounts.business', verbose_name='کسب\u200cوکار')),
+                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL, verbose_name='ثبت\u200cکننده')),
+            ],
+            options={
+                'verbose_name': 'استراتژی',
+                'verbose_name_plural': 'استراتژی\u200cها',
+                'ordering': ['-created_at'],
+                'abstract': False,
+            },
+        ),
+        migrations.CreateModel(
+            name='Supplier',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('title', models.CharField(max_length=200, verbose_name='عنوان / نام')),
+                ('status', models.CharField(default='جدید', max_length=50, verbose_name='وضعیت')),
+                ('date', models.DateField(blank=True, null=True, verbose_name='تاریخ')),
+                ('notes', models.TextField(blank=True, verbose_name='یادداشت')),
+                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')),
+                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='آخرین ویرایش')),
+                ('phone', models.CharField(blank=True, max_length=20, verbose_name='شماره تماس')),
+                ('contact_person', models.CharField(blank=True, max_length=100, verbose_name='شخص رابط')),
+                ('products', models.TextField(blank=True, verbose_name='کالاها/خدمات')),
+                ('payment_terms', models.CharField(blank=True, max_length=200, verbose_name='شرایط پرداخت')),
+                ('business', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='%(class)s_records', to='accounts.business', verbose_name='کسب\u200cوکار')),
+                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL, verbose_name='ثبت\u200cکننده')),
+            ],
+            options={
+                'verbose_name': 'تأمین\u200cکننده',
+                'verbose_name_plural': 'تأمین\u200cکنندگان',
+                'ordering': ['-created_at'],
+                'abstract': False,
+            },
+        ),
+        migrations.CreateModel(
+            name='Task',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('title', models.CharField(max_length=200, verbose_name='عنوان / نام')),
+                ('status', models.CharField(default='جدید', max_length=50, verbose_name='وضعیت')),
+                ('date', models.DateField(blank=True, null=True, verbose_name='تاریخ')),
+                ('notes', models.TextField(blank=True, verbose_name='یادداشت')),
+                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')),
+                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='آخرین ویرایش')),
+                ('due_date', models.DateField(blank=True, null=True, verbose_name='مهلت انجام')),
+                ('priority', models.CharField(choices=[('کم', 'کم'), ('متوسط', 'متوسط'), ('زیاد', 'زیاد'), ('فوری', 'فوری')], default='متوسط', max_length=20, verbose_name='اولویت')),
+                ('is_done', models.BooleanField(default=False, verbose_name='انجام شد')),
+                ('assignee', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='tasks', to=settings.AUTH_USER_MODEL, verbose_name='مسئول')),
+                ('business', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='%(class)s_records', to='accounts.business', verbose_name='کسب\u200cوکار')),
+                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL, verbose_name='ثبت\u200cکننده')),
+            ],
+            options={
+                'verbose_name': 'پیگیری',
+                'verbose_name_plural': 'پیگیری\u200cها',
+                'ordering': ['-created_at'],
+                'abstract': False,
+            },
+        ),
+    ]
+
+
+
+======================================================================
+📄 فایل 13/63: apps\crm\migrations\__init__.py
+📏 1 خط
+======================================================================
+
+
+
+
+======================================================================
+📄 فایل 14/63: apps\crm\models.py
+📏 218 خط
+======================================================================
+
+from django.db import models
+from django.conf import settings
+
+
+class BaseRecord(models.Model):
+    """
+    کلاس انتزاعی مشترک برای همه‌ی رکوردهای CRM
+    هر رکورد به یک کسب‌وکار تعلق داره
+    """
+    business = models.ForeignKey(
+        "accounts.Business",
+        on_delete=models.CASCADE,
+        related_name="%(class)s_records",
+        verbose_name="کسب‌وکار",
+    )
+    title = models.CharField("عنوان / نام", max_length=200)
+    status = models.CharField("وضعیت", max_length=50, default="جدید")
+    date = models.DateField("تاریخ", null=True, blank=True)
+    notes = models.TextField("یادداشت", blank=True)
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="%(class)s_created",
+        verbose_name="ثبت‌کننده",
+    )
+    created_at = models.DateTimeField("تاریخ ثبت", auto_now_add=True)
+    updated_at = models.DateTimeField("آخرین ویرایش", auto_now=True)
+
+    class Meta:
+        abstract = True
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
+
+
+class Customer(BaseRecord):
+    """مشتری / ارتباط"""
+    phone = models.CharField("شماره تماس", max_length=20, blank=True)
+    company = models.CharField("شرکت", max_length=150, blank=True)
+    email = models.EmailField("ایمیل", blank=True)
+    address = models.TextField("آدرس", blank=True)
+
+    # فیلدهای مخصوص فروش
+    source = models.CharField("منبع آشنایی", max_length=100, blank=True)
+    tags = models.CharField("برچسب‌ها", max_length=200, blank=True,
+                            help_text="با کاما جدا کن")
+
+    class Meta(BaseRecord.Meta):
+        verbose_name = "مشتری"
+        verbose_name_plural = "مشتریان"
+
+
+class Project(BaseRecord):
+    """پروژه"""
+    STATUS_CHOICES = [
+        ("جدید", "جدید"),
+        ("در حال پیگیری", "در حال پیگیری"),
+        ("فعال", "فعال"),
+        ("انجام شد", "انجام شد"),
+        ("لغو شد", "لغو شد"),
+        ("بایگانی", "بایگانی"),
+    ]
+    customer = models.ForeignKey(
+        Customer, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="projects",
+        verbose_name="مشتری",
+    )
+    start_date = models.DateField("تاریخ شروع", null=True, blank=True)
+    end_date = models.DateField("تاریخ پایان", null=True, blank=True)
+    budget = models.DecimalField("بودجه (تومان)", max_digits=15,
+                                 decimal_places=0, null=True, blank=True)
+    progress = models.PositiveIntegerField("درصد پیشرفت", default=0)
+
+    class Meta(BaseRecord.Meta):
+        verbose_name = "پروژه"
+        verbose_name_plural = "پروژه‌ها"
+
+
+class Opportunity(BaseRecord):
+    """فرصت فروش"""
+    STAGE_CHOICES = [
+        ("سرنخ", "سرنخ"),
+        ("تماس اولیه", "تماس اولیه"),
+        ("نیازسنجی", "نیازسنجی"),
+        ("ارائه پیشنهاد", "ارائه پیشنهاد"),
+        ("مذاکره", "مذاکره"),
+        ("برنده", "برنده"),
+        ("باخت", "باخت"),
+    ]
+    customer = models.ForeignKey(
+        Customer, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="opportunities",
+        verbose_name="مشتری",
+    )
+    amount = models.DecimalField("مبلغ (تومان)", max_digits=15,
+                                 decimal_places=0, null=True, blank=True)
+    stage = models.CharField("مرحله فروش", max_length=50,
+                             choices=STAGE_CHOICES, default="سرنخ")
+    probability = models.PositiveIntegerField("احتمال موفقیت (%)", default=50)
+    expected_close = models.DateField("تاریخ بستن احتمالی", null=True, blank=True)
+
+    class Meta(BaseRecord.Meta):
+        verbose_name = "فرصت فروش"
+        verbose_name_plural = "فرصت‌های فروش"
+
+
+class Task(BaseRecord):
+    """پیگیری / وظیفه"""
+    PRIORITY_CHOICES = [
+        ("کم", "کم"),
+        ("متوسط", "متوسط"),
+        ("زیاد", "زیاد"),
+        ("فوری", "فوری"),
+    ]
+    assignee = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="tasks",
+        verbose_name="مسئول",
+    )
+    due_date = models.DateField("مهلت انجام", null=True, blank=True)
+    priority = models.CharField("اولویت", max_length=20,
+                                choices=PRIORITY_CHOICES, default="متوسط")
+    is_done = models.BooleanField("انجام شد", default=False)
+
+    class Meta(BaseRecord.Meta):
+        verbose_name = "پیگیری"
+        verbose_name_plural = "پیگیری‌ها"
+
+
+class Finance(BaseRecord):
+    """تراکنش مالی"""
+    TYPE_CHOICES = [
+        ("درآمد", "درآمد"),
+        ("هزینه", "هزینه"),
+    ]
+    type = models.CharField("نوع", max_length=20, choices=TYPE_CHOICES,
+                            default="درآمد")
+    amount = models.DecimalField("مبلغ (تومان)", max_digits=15,
+                                 decimal_places=0, default=0)
+    category = models.CharField("دسته", max_length=100, blank=True)
+    customer = models.ForeignKey(
+        Customer, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="transactions",
+        verbose_name="مشتری مرتبط",
+    )
+    project = models.ForeignKey(
+        Project, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="transactions",
+        verbose_name="پروژه مرتبط",
+    )
+
+    class Meta(BaseRecord.Meta):
+        verbose_name = "تراکنش مالی"
+        verbose_name_plural = "تراکنش‌های مالی"
+
+
+class Supplier(BaseRecord):
+    """تأمین‌کننده"""
+    phone = models.CharField("شماره تماس", max_length=20, blank=True)
+    contact_person = models.CharField("شخص رابط", max_length=100, blank=True)
+    products = models.TextField("کالاها/خدمات", blank=True)
+    payment_terms = models.CharField("شرایط پرداخت", max_length=200, blank=True)
+
+    class Meta(BaseRecord.Meta):
+        verbose_name = "تأمین‌کننده"
+        verbose_name_plural = "تأمین‌کنندگان"
+
+
+class Colleague(BaseRecord):
+    """همکار"""
+    ROLE_CHOICES = [
+        ("مدیر", "مدیر"),
+        ("فروش", "فروش"),
+        ("فنی", "فنی"),
+        ("مالی", "مالی"),
+        ("پشتیبانی", "پشتیبانی"),
+        ("سایر", "سایر"),
+    ]
+    phone = models.CharField("شماره تماس", max_length=20, blank=True)
+    position = models.CharField("سمت", max_length=100,
+                                choices=ROLE_CHOICES, blank=True)
+    responsibilities = models.TextField("مسئولیت‌ها", blank=True)
+    user_account = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="colleague_profile",
+        verbose_name="حساب کاربری",
+    )
+
+    class Meta(BaseRecord.Meta):
+        verbose_name = "همکار"
+        verbose_name_plural = "همکاران"
+
+
+class Competitor(BaseRecord):
+    """رقیب"""
+    phone = models.CharField("شماره تماس", max_length=20, blank=True)
+    website = models.URLField("وب‌سایت", blank=True)
+    strengths = models.TextField("نقاط قوت", blank=True)
+    weaknesses = models.TextField("نقاط ضعف", blank=True)
+
+    class Meta(BaseRecord.Meta):
+        verbose_name = "رقیب"
+        verbose_name_plural = "رقبا"
+
+
+class Strategy(BaseRecord):
+    """استراتژی"""
+    mission = models.TextField("ماموریت", blank=True)
+    vision = models.TextField("چشم‌انداز", blank=True)
+    goals = models.TextField("اهداف", blank=True)
+    kpis = models.TextField("شاخص‌های کلیدی (KPI)", blank=True)
+
+    class Meta(BaseRecord.Meta):
+        verbose_name = "استراتژی"
+        verbose_name_plural = "استراتژی‌ها"
+
+
+======================================================================
+📄 فایل 15/63: apps\crm\urls.py
+📏 18 خط
+======================================================================
+
+from django.urls import path
+from . import api
+
+urlpatterns = [
+    path("api/stats/", api.stats_view, name="api_stats"),
+    path("api/search/", api.search_view, name="api_search"),
+    path("api/export/", api.export_view, name="api_export"),
+
+    # گزارش‌ها
+    path("api/reports/pipeline/", api.report_pipeline_view, name="api_report_pipeline"),
+    path("api/reports/monthly/", api.report_monthly_view, name="api_report_monthly"),
+    path("api/reports/weekly/", api.report_weekly_view, name="api_report_weekly"),
+    path("api/reports/top-customers/", api.report_top_customers_view, name="api_report_top_customers"),
+
+    # CRUD
+    path("api/<str:record_type>/", api.records_view, name="api_records"),
+    path("api/<str:record_type>/<int:pk>/", api.record_detail_view, name="api_record_detail"),
+]
+
+
+======================================================================
+📄 فایل 16/63: apps\dashboard\analytics.py
+📏 140 خط
+======================================================================
+
+"""
+توابع محاسبه‌ی آمار و گزارش‌ها
+"""
+from datetime import timedelta
+from decimal import Decimal
+from django.db.models import Sum, Count, Q
+from django.utils import timezone
+
+from apps.crm.models import (
+    Customer, Project, Opportunity, Task, Finance, Colleague
+)
+
+
+def summary(business):
+    """خلاصه‌ی کلی"""
+    today = timezone.localdate()
+    week_ago = today - timedelta(days=7)
+    month_ago = today - timedelta(days=30)
+
+    income = Finance.objects.filter(
+        business=business, type="درآمد"
+    ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+
+    expense = Finance.objects.filter(
+        business=business, type="هزینه"
+    ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+
+    return {
+        "customers_total": Customer.objects.filter(business=business).count(),
+        "customers_new_week": Customer.objects.filter(
+            business=business, created_at__gte=week_ago
+        ).count(),
+        "projects_active": Project.objects.filter(
+            business=business, status="فعال"
+        ).count(),
+        "opportunities_open": Opportunity.objects.filter(
+            business=business
+        ).exclude(stage__in=["برنده", "باخت"]).count(),
+        "tasks_open": Task.objects.filter(
+            business=business, is_done=False
+        ).count(),
+        "tasks_overdue": Task.objects.filter(
+            business=business, is_done=False, due_date__lt=today
+        ).count(),
+        "tasks_today": Task.objects.filter(
+            business=business, is_done=False, due_date=today
+        ).count(),
+        "income": income,
+        "expense": expense,
+        "profit": income - expense,
+        "colleagues": Colleague.objects.filter(business=business).count(),
+    }
+
+
+def pipeline(business):
+    """قیف فروش — تعداد فرصت‌ها در هر مرحله"""
+    stages = ["سرنخ", "تماس اولیه", "نیازسنجی", "ارائه پیشنهاد",
+              "مذاکره", "برنده", "باخت"]
+    result = []
+    for stage in stages:
+        qs = Opportunity.objects.filter(business=business, stage=stage)
+        result.append({
+            "stage": stage,
+            "count": qs.count(),
+            "amount": qs.aggregate(s=Sum("amount"))["s"] or 0,
+        })
+    return result
+
+
+def weekly_activity(business):
+    """فعالیت ۷ روز اخیر"""
+    today = timezone.localdate()
+    days = []
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i)
+        days.append({
+            "date": d.isoformat(),
+            "label": _fa_weekday(d.weekday()),
+            "customers": Customer.objects.filter(
+                business=business, created_at__date=d
+            ).count(),
+            "tasks": Task.objects.filter(
+                business=business, created_at__date=d
+            ).count(),
+        })
+    return days
+
+
+def monthly_finance(business, months=6):
+    """مالی ۶ ماه اخیر"""
+    from calendar import monthrange
+    today = timezone.localdate()
+    result = []
+    for i in range(months - 1, -1, -1):
+        # محاسبه‌ی ماه i ماه قبل
+        y = today.year
+        m = today.month - i
+        while m <= 0:
+            m += 12
+            y -= 1
+        first = today.replace(year=y, month=m, day=1)
+        last_day = monthrange(y, m)[1]
+        last = today.replace(year=y, month=m, day=last_day)
+
+        inc = Finance.objects.filter(
+            business=business, type="درآمد",
+            date__gte=first, date__lte=last
+        ).aggregate(s=Sum("amount"))["s"] or 0
+        exp = Finance.objects.filter(
+            business=business, type="هزینه",
+            date__gte=first, date__lte=last
+        ).aggregate(s=Sum("amount"))["s"] or 0
+
+        result.append({
+            "label": _fa_month(m),
+            "income": int(inc),
+            "expense": int(exp),
+        })
+    return result
+
+
+def top_customers(business, limit=5):
+    """مشتریان برتر بر اساس تراکنش"""
+    qs = Customer.objects.filter(business=business).annotate(
+        total=Sum("transactions__amount",
+                  filter=Q(transactions__type="درآمد"))
+    ).filter(total__gt=0).order_by("-total")[:limit]
+    return [{"title": c.title, "total": int(c.total or 0)} for c in qs]
+
+
+# ---------- کمکی ----------
+def _fa_weekday(w):
+    return ["دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه",
+            "جمعه", "شنبه", "یکشنبه"][w]
+
+
+def _fa_month(m):
+    return ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد",
+            "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن",
+            "اسفند"][m - 1]
+
+
+======================================================================
+📄 فایل 17/63: apps\dashboard\urls.py
+📏 7 خط
+======================================================================
+
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("", views.home, name="dashboard_home"),
+    path("reports/", views.reports, name="dashboard_reports"),
+]
+
+
+======================================================================
+📄 فایل 18/63: apps\dashboard\views.py
+📏 62 خط
+======================================================================
+
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+
+from .analytics import (
+    summary, pipeline, weekly_activity,
+    monthly_finance, top_customers,
+)
+
+from django.utils import timezone
+from apps.crm.models import Task
+
+@login_required
+def home(request):
+    business = getattr(request, "business", None) or getattr(request.user, "business", None)
+    if not business:
+        return redirect("/accounts/register/")
+
+    # قیف فروش با درصد
+    pipe = pipeline(business)
+    max_count = max([p["count"] for p in pipe] or [1]) or 1
+    for p in pipe:
+        p["percent"] = int((p["count"] / max_count) * 100) if max_count else 0
+
+    # پیگیری‌های امروز
+    today = timezone.localdate()
+    today_qs = Task.objects.filter(
+        business=business, is_done=False, due_date=today
+    )[:5]
+
+    priority_map = {
+        "کم": "low", "متوسط": "mid",
+        "زیاد": "high", "فوری": "urgent",
+    }
+    today_tasks = [
+        {
+            "id": t.id, "title": t.title,
+            "due_date": t.due_date,
+            "priority": t.priority,
+            "priority_class": priority_map.get(t.priority, "mid"),
+            "is_done": t.is_done,
+        }
+        for t in today_qs
+    ]
+
+    return render(request, "dashboard/home.html", {
+        "business": business,
+        "stats": summary(business),
+        "pipeline": pipe,
+        "today_tasks": today_tasks,
+    })
+
+
+@login_required
+def reports(request):
+    business = getattr(request, "business", None) or getattr(request.user, "business", None)
+    if not business:
+        return redirect("/accounts/register/")
+    return render(request, "dashboard/reports.html", {"business": business})
+
+
+
+
+
+
+======================================================================
+📄 فایل 19/63: apps\voice\__init__.py
+📏 1 خط
+======================================================================
+
+
+
+
+======================================================================
+📄 فایل 20/63: apps\voice\admin.py
+📏 25 خط
+======================================================================
+
+from django.contrib import admin
+from .models import VoiceLog, AIConversation
+
+
+@admin.register(VoiceLog)
+class VoiceLogAdmin(admin.ModelAdmin):
+    list_display = ("user", "business", "short_transcript", "created_at")
+    list_filter = ("business",)
+    search_fields = ("transcript", "reply")
+    readonly_fields = ("created_at",)
+
+    def short_transcript(self, obj):
+        return (obj.transcript[:60] + "...") if len(obj.transcript) > 60 else obj.transcript
+    short_transcript.short_description = "متن"
+
+
+@admin.register(AIConversation)
+class AIConversationAdmin(admin.ModelAdmin):
+    list_display = ("user", "role", "short_content", "created_at")
+    list_filter = ("role", "business")
+    search_fields = ("content",)
+
+    def short_content(self, obj):
+        return (obj.content[:60] + "...") if len(obj.content) > 60 else obj.content
+    short_content.short_description = "محتوا"
+
+
+======================================================================
+📄 فایل 21/63: apps\voice\agent.py
+📏 111 خط
+======================================================================
+
+"""
+Agent دستیار صوتی مرداس
+LLM رو صدا می‌زنه، اگه tool_call داشت اجرا می‌کنه،
+نتیجه رو دوباره به LLM می‌ده تا پاسخ نهایی بسازه
+"""
+import json
+from channels.db import database_sync_to_async
+
+from core.ai import get_llm
+from core.ai.prompts import SYSTEM_PROMPT
+from .tools import TOOLS_SCHEMA, TOOL_FUNCTIONS
+from .models import AIConversation
+
+
+MAX_TOOL_ROUNDS = 3
+
+
+class VoiceAgent:
+    def __init__(self, business, user):
+        self.business = business
+        self.user = user
+        self.llm = get_llm()
+
+    async def handle(self, user_text: str) -> dict:
+        """ورودی: متن کاربر / خروجی: {"reply": "...", "actions": [...]}"""
+        actions = []
+
+        # ۱. گرفتن تاریخچه (async-safe)
+        history = await self._get_history()
+
+        # ۲. ذخیره‌ی پیام کاربر (async-safe)
+        await self._save_message("user", user_text)
+
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages.extend(history)
+        messages.append({"role": "user", "content": user_text})
+
+        reply = ""
+
+        for _ in range(MAX_TOOL_ROUNDS):
+            result = await self.llm.chat(messages, tools=TOOLS_SCHEMA)
+
+            if result["tool_calls"]:
+                messages.append({
+                    "role": "assistant",
+                    "content": result["content"] or None,
+                    "tool_calls": [
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": json.dumps(tc["arguments"], ensure_ascii=False),
+                            },
+                        }
+                        for tc in result["tool_calls"]
+                    ],
+                })
+
+                for tc in result["tool_calls"]:
+                    tool_result = await self._run_tool(tc["name"], tc["arguments"])
+                    actions.append({
+                        "name": tc["name"],
+                        "arguments": tc["arguments"],
+                        "result": tool_result,
+                    })
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": json.dumps(tool_result, ensure_ascii=False),
+                    })
+                continue
+
+            reply = result["content"] or "متوجه نشدم، دوباره بگو."
+            break
+        else:
+            reply = reply or "متأسفانه نتونستم عملیات رو تکمیل کنم."
+
+        # ۳. ذخیره‌ی پاسخ دستیار (async-safe)
+        await self._save_message("assistant", reply)
+
+        return {"reply": reply, "actions": actions}
+
+    # ---------------- sync→async wrappers ----------------
+
+    @database_sync_to_async
+    def _get_history(self):
+        qs = AIConversation.objects.filter(
+            business=self.business, user=self.user
+        ).order_by("-created_at")[:10]
+        return [
+            {"role": c.role, "content": c.content}
+            for c in reversed(list(qs))
+        ]
+
+    @database_sync_to_async
+    def _save_message(self, role, content):
+        AIConversation.objects.create(
+            business=self.business, user=self.user,
+            role=role, content=content,
+        )
+
+    @database_sync_to_async
+    def _run_tool(self, name: str, args: dict) -> dict:
+        func = TOOL_FUNCTIONS.get(name)
+        if not func:
+            return {"ok": False, "error": f"تابع {name} پیدا نشد."}
+        try:
+            return func(business=self.business, user=self.user, **args)
+        except Exception as exc:
+            return {"ok": False, "error": f"خطا در اجرای {name}: {exc}"}
+
+
+======================================================================
+📄 فایل 22/63: apps\voice\apps.py
+📏 7 خط
+======================================================================
+
+from django.apps import AppConfig
+
+
+class VoiceConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.voice"
+    verbose_name = "دستیار صوتی"
+
+
+======================================================================
+📄 فایل 23/63: apps\voice\consumers.py
+📏 178 خط
+======================================================================
+
+"""
+WebSocket Consumer برای دستیار صوتی
+پروتکل پیام‌ها:
+  → {"type": "start"}                     شروع ضبط
+  → {"type": "audio", "data": "<base64>"} chunk صدا
+  → {"type": "stop"}                      پایان ضبط
+
+  ← {"type": "ready"}
+  ← {"type": "transcript", "text": "..."}
+  ← {"type": "action", "name": "...", "result": {...}}
+  ← {"type": "reply_text", "text": "..."}
+  ← {"type": "reply_audio", "data": "<base64>"}
+  ← {"type": "error", "message": "..."}
+"""
+import base64
+import json
+import time
+import logging
+
+from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.db import database_sync_to_async
+
+from django.conf import settings
+from core.ai import get_stt, get_tts
+from .agent import VoiceAgent
+from .models import VoiceLog
+
+
+logger = logging.getLogger(__name__)
+
+
+class VoiceConsumer(AsyncWebsocketConsumer):
+
+    async def connect(self):
+        self.user = self.scope["user"]
+        print(">>> WS connect — user:", self.user, "auth:", self.user.is_authenticated)
+
+        if not self.user.is_authenticated:
+            print(">>> WS reject: user not authenticated")
+            await self.close(code=4001)
+            return
+
+        self.business = await self._get_business()
+        print(">>> WS connect — business:", self.business)
+
+        if not self.business:
+            print(">>> WS reject: no business")
+            await self.close(code=4002)
+            return
+
+        self.audio_chunks = []
+        self.started_at = None
+        await self.accept()
+        await self.send(text_data=json.dumps({"type": "ready"}))
+        print(">>> WS accept: ready sent")
+
+        
+    async def disconnect(self, code):
+        self.audio_chunks = []
+
+    async def receive(self, text_data=None, bytes_data=None):
+        try:
+            if text_data:
+                msg = json.loads(text_data)
+            else:
+                # اگر بایت خام اومد، مستقیم chunk صدا حساب کن
+                self.audio_chunks.append(bytes_data)
+                return
+
+            mtype = msg.get("type")
+
+            if mtype == "start":
+                self.audio_chunks = []
+                self.started_at = time.time()
+                await self._send({"type": "recording"})
+
+            elif mtype == "audio":
+                chunk_b64 = msg.get("data", "")
+                if chunk_b64:
+                    self.audio_chunks.append(base64.b64decode(chunk_b64))
+
+            elif mtype == "stop":
+                await self._process_voice()
+
+        except Exception as exc:
+            logger.exception("VoiceConsumer error")
+            await self._send({"type": "error", "message": str(exc)})
+
+    # ---------------- پردازش ----------------
+
+    async def _process_voice(self):
+        if not self.audio_chunks:
+            await self._send({"type": "error", "message": "صدایی ضبط نشد."})
+            return
+
+        audio = b"".join(self.audio_chunks)
+        self.audio_chunks = []
+
+        if len(audio) > settings.VOICE_MAX_BYTES:
+            await self._send({"type": "error", "message": "حجم صدا زیاد است."})
+            return
+
+        duration_ms = int((time.time() - (self.started_at or time.time())) * 1000)
+
+        # ۱. STT
+        try:
+            stt = get_stt()
+            transcript = await stt.transcribe(audio, language="fa")
+        except Exception as exc:
+            await self._save_log(error=f"STT: {exc}", duration_ms=duration_ms)
+            await self._send({"type": "error", "message": "نتونستم صدا رو تشخیص بدم."})
+            return
+
+        if not transcript:
+            await self._send({"type": "error", "message": "چیزی نفهمیدم، دوباره بگو."})
+            return
+
+        await self._send({"type": "transcript", "text": transcript})
+
+        # ۲. Agent
+        try:
+            agent = VoiceAgent(business=self.business, user=self.user)
+            result = await agent.handle(transcript)
+        except Exception as exc:
+            logger.exception("Agent error")
+            await self._save_log(transcript=transcript, error=f"Agent: {exc}",
+                                 duration_ms=duration_ms)
+            await self._send({"type": "error", "message": "خطا در پردازش درخواست."})
+            return
+
+        # ارسال عملیات‌ها
+        for act in result["actions"]:
+            await self._send({
+                "type": "action",
+                "name": act["name"],
+                "result": act["result"],
+            })
+
+        reply = result["reply"]
+
+        # ۳. TTS
+        try:
+            tts = get_tts()
+            audio_out = await tts.synthesize(reply)
+            await self._send({
+                "type": "reply_audio",
+                "data": base64.b64encode(audio_out).decode(),
+            })
+        except Exception as exc:
+            logger.warning(f"TTS error: {exc}")
+
+        await self._send({"type": "reply_text", "text": reply})
+
+        # ۴. ذخیره لاگ
+        await self._save_log(
+            transcript=transcript, reply=reply,
+            actions=[a["name"] for a in result["actions"]],
+            duration_ms=duration_ms,
+        )
+
+    # ---------------- کمکی ----------------
+
+    async def _send(self, payload: dict):
+        await self.send(text_data=json.dumps(payload, ensure_ascii=False))
+
+    @database_sync_to_async
+    def _get_business(self):
+        return getattr(self.user, "business", None)
+
+    @database_sync_to_async
+    def _save_log(self, transcript="", reply="", actions=None,
+                  error="", duration_ms=0):
+        VoiceLog.objects.create(
+            business=self.business, user=self.user,
+            transcript=transcript, reply=reply,
+            actions=actions or [], error=error,
+            duration_ms=duration_ms,
+        )
+
+
+======================================================================
+📄 فایل 24/63: apps\voice\migrations\0001_initial.py
+📏 54 خط
+======================================================================
+
+# Generated by Django 5.0.6 on 2026-10-08 17:34
+
+import django.db.models.deletion
+from django.conf import settings
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+        ('accounts', '0001_initial'),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='AIConversation',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('role', models.CharField(choices=[('user', 'کاربر'), ('assistant', 'دستیار')], max_length=20, verbose_name='نقش')),
+                ('content', models.TextField(verbose_name='محتوا')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('business', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='ai_conversations', to='accounts.business', verbose_name='کسب\u200cوکار')),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='ai_conversations', to=settings.AUTH_USER_MODEL, verbose_name='کاربر')),
+            ],
+            options={
+                'verbose_name': 'گفتگوی AI',
+                'verbose_name_plural': 'گفتگوهای AI',
+                'ordering': ['created_at'],
+            },
+        ),
+        migrations.CreateModel(
+            name='VoiceLog',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('transcript', models.TextField(blank=True, verbose_name='متن تبدیل\u200cشده')),
+                ('reply', models.TextField(blank=True, verbose_name='پاسخ دستیار')),
+                ('actions', models.JSONField(blank=True, default=list, verbose_name='عملیات انجام\u200cشده')),
+                ('error', models.TextField(blank=True, verbose_name='خطا')),
+                ('duration_ms', models.PositiveIntegerField(default=0, verbose_name='مدت (میلی\u200cثانیه)')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('business', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='voice_logs', to='accounts.business', verbose_name='کسب\u200cوکار')),
+                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='voice_logs', to=settings.AUTH_USER_MODEL, verbose_name='کاربر')),
+            ],
+            options={
+                'verbose_name': 'لاگ صوتی',
+                'verbose_name_plural': 'لاگ\u200cهای صوتی',
+                'ordering': ['-created_at'],
+            },
+        ),
+    ]
+
+
+
+======================================================================
+📄 فایل 25/63: apps\voice\migrations\__init__.py
+📏 1 خط
+======================================================================
+
+
+
+
+======================================================================
+📄 فایل 26/63: apps\voice\models.py
+📏 53 خط
+======================================================================
+
+from django.db import models
+from django.conf import settings
+
+
+class VoiceLog(models.Model):
+    """لاگ هر تعامل صوتی کاربر"""
+    business = models.ForeignKey(
+        "accounts.Business", on_delete=models.CASCADE,
+        related_name="voice_logs", verbose_name="کسب‌وکار",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="voice_logs",
+        verbose_name="کاربر",
+    )
+    transcript = models.TextField("متن تبدیل‌شده", blank=True)
+    reply = models.TextField("پاسخ دستیار", blank=True)
+    actions = models.JSONField("عملیات انجام‌شده", default=list, blank=True)
+    error = models.TextField("خطا", blank=True)
+    duration_ms = models.PositiveIntegerField("مدت (میلی‌ثانیه)", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "لاگ صوتی"
+        verbose_name_plural = "لاگ‌های صوتی"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user} — {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class AIConversation(models.Model):
+    """تاریخچه‌ی گفتگو با دستیار (برای حفظ context)"""
+    business = models.ForeignKey(
+        "accounts.Business", on_delete=models.CASCADE,
+        related_name="ai_conversations", verbose_name="کسب‌وکار",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="ai_conversations", verbose_name="کاربر",
+    )
+    role = models.CharField("نقش", max_length=20,
+                            choices=[("user", "کاربر"), ("assistant", "دستیار")])
+    content = models.TextField("محتوا")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "گفتگوی AI"
+        verbose_name_plural = "گفتگوهای AI"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.role}: {self.content[:50]}"
+
+
+======================================================================
+📄 فایل 27/63: apps\voice\routing.py
+📏 1 خط
+======================================================================
+
+websocket_urlpatterns = []
+
+
+======================================================================
+📄 فایل 28/63: apps\voice\tools.py
+📏 331 خط
+======================================================================
+
+"""
+ابزارهای قابل صدا زدن توسط AI
+هر تابع یه dict برمی‌گردونه که به AI داده می‌شه
+"""
+from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
+from django.db.models import Q, Sum
+from django.utils import timezone
+
+from apps.crm.models import (
+    Customer, Project, Opportunity, Task, Finance,
+    Supplier, Colleague, Competitor, Strategy,
+)
+
+
+# ============================================================
+# ثبت رکوردهای جدید
+# ============================================================
+
+def create_customer(business, user, title, phone="", company="", notes="", **kwargs):
+    """ثبت مشتری جدید"""
+    if not title:
+        return {"ok": False, "error": "نام مشتری الزامی است."}
+    obj = Customer.objects.create(
+        business=business, created_by=user,
+        title=title, phone=phone, company=company,
+        notes=notes, status="جدید",
+    )
+    return {"ok": True, "id": obj.id, "message": f"مشتری «{title}» ثبت شد."}
+
+
+def create_project(business, user, title, customer_name="", notes="", **kwargs):
+    """ثبت پروژه جدید"""
+    if not title:
+        return {"ok": False, "error": "عنوان پروژه الزامی است."}
+    customer = None
+    if customer_name:
+        customer = Customer.objects.filter(
+            business=business, title__icontains=customer_name
+        ).first()
+    obj = Project.objects.create(
+        business=business, created_by=user,
+        title=title, customer=customer, notes=notes, status="جدید",
+    )
+    return {"ok": True, "id": obj.id, "message": f"پروژه «{title}» ثبت شد."}
+
+
+def create_opportunity(business, user, title, customer_name="", amount=None, **kwargs):
+    """ثبت فرصت فروش"""
+    if not title:
+        return {"ok": False, "error": "عنوان فرصت الزامی است."}
+    customer = None
+    if customer_name:
+        customer = Customer.objects.filter(
+            business=business, title__icontains=customer_name
+        ).first()
+
+    amt = _to_decimal(amount)
+    obj = Opportunity.objects.create(
+        business=business, created_by=user,
+        title=title, customer=customer, amount=amt, stage="سرنخ",
+    )
+    return {"ok": True, "id": obj.id, "message": f"فرصت فروش «{title}» ثبت شد."}
+
+
+def create_task(business, user, title, due_date=None, priority="متوسط", **kwargs):
+    """ثبت پیگیری"""
+    if not title:
+        return {"ok": False, "error": "عنوان پیگیری الزامی است."}
+    d = _to_date(due_date)
+    if priority not in ["کم", "متوسط", "زیاد", "فوری"]:
+        priority = "متوسط"
+    obj = Task.objects.create(
+        business=business, created_by=user,
+        title=title, due_date=d, priority=priority, status="جدید",
+    )
+    return {"ok": True, "id": obj.id, "message": f"پیگیری «{title}» ثبت شد."}
+
+
+def create_finance(business, user, title, amount, type="درآمد", category="", **kwargs):
+    """ثبت تراکنش مالی"""
+    if not title:
+        return {"ok": False, "error": "عنوان تراکنش الزامی است."}
+    amt = _to_decimal(amount) or Decimal("0")
+    if type not in ["درآمد", "هزینه"]:
+        type = "درآمد"
+    obj = Finance.objects.create(
+        business=business, created_by=user,
+        title=title, amount=amt, type=type, category=category,
+    )
+    return {"ok": True, "id": obj.id,
+            "message": f"تراکنش «{title}» به مبلغ {amt:,} تومان ثبت شد."}
+
+
+# ============================================================
+# جستجو
+# ============================================================
+
+def search_customer(business, query="", **kwargs):
+    """جستجوی مشتری"""
+    qs = Customer.objects.filter(business=business)
+    if query:
+        qs = qs.filter(
+            Q(title__icontains=query) |
+            Q(phone__icontains=query) |
+            Q(company__icontains=query)
+        )
+    results = [
+        {"id": c.id, "title": c.title, "phone": c.phone, "company": c.company}
+        for c in qs[:10]
+    ]
+    if not results:
+        return {"ok": True, "count": 0, "message": "مشتری‌ای پیدا نشد."}
+    return {"ok": True, "count": len(results), "results": results,
+            "message": f"{len(results)} مشتری پیدا شد."}
+
+
+# ============================================================
+# گزارش‌ها
+# ============================================================
+
+def get_report(business, report_type="summary", **kwargs):
+    """گزارش کلی یا نوع خاص"""
+    if report_type == "customers":
+        n = Customer.objects.filter(business=business).count()
+        return {"ok": True, "message": f"{n} مشتری ثبت شده است."}
+
+    if report_type == "tasks":
+        n = Task.objects.filter(business=business, is_done=False).count()
+        return {"ok": True, "message": f"{n} پیگیری باز دارید."}
+
+    if report_type == "finance":
+        income = Finance.objects.filter(
+            business=business, type="درآمد"
+        ).aggregate(s=Sum("amount"))["s"] or 0
+        expense = Finance.objects.filter(
+            business=business, type="هزینه"
+        ).aggregate(s=Sum("amount"))["s"] or 0
+        return {"ok": True,
+                "message": f"درآمد: {income:,} تومان، هزینه: {expense:,} تومان، "
+                           f"سود: {income - expense:,} تومان."}
+
+    # خلاصه‌ی کلی
+    return {"ok": True, "message":
+        f"مشتری: {Customer.objects.filter(business=business).count()} | "
+        f"پروژه: {Project.objects.filter(business=business).count()} | "
+        f"فرصت: {Opportunity.objects.filter(business=business).count()} | "
+        f"پیگیری باز: {Task.objects.filter(business=business, is_done=False).count()}"
+    }
+
+
+def get_tasks_today(business, **kwargs):
+    """پیگیری‌های امروز"""
+    today = timezone.localdate()
+    qs = Task.objects.filter(business=business, due_date=today, is_done=False)
+    if not qs.exists():
+        return {"ok": True, "message": "امروز پیگیری‌ای نداری."}
+    items = [f"• {t.title}" for t in qs[:5]]
+    return {"ok": True, "message": f"{qs.count()} پیگیری امروز:\n" + "\n".join(items)}
+
+
+# ============================================================
+# کمکی‌ها
+# ============================================================
+
+def _to_decimal(v):
+    if v is None or v == "":
+        return None
+    try:
+        # حذف کاما و اعداد فارسی
+        s = str(v).replace(",", "").replace("،", "").strip()
+        s = s.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789"))
+        return Decimal(s)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _to_date(v):
+    if not v:
+        return None
+    if isinstance(v, date):
+        return v
+    try:
+        s = str(v).translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789"))
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
+# ============================================================
+# نقشه‌ی توابع و اسکیمای OpenAI
+# ============================================================
+
+# نام تابع → خود تابع
+TOOL_FUNCTIONS = {
+    "create_customer": create_customer,
+    "create_project": create_project,
+    "create_opportunity": create_opportunity,
+    "create_task": create_task,
+    "create_finance": create_finance,
+    "search_customer": search_customer,
+    "get_report": get_report,
+    "get_tasks_today": get_tasks_today,
+}
+
+
+# اسکیمای ابزارها برای OpenAI
+TOOLS_SCHEMA = [
+    {
+        "type": "function",
+        "function": {
+            "name": "create_customer",
+            "description": "ثبت مشتری جدید در سیستم",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "نام مشتری"},
+                    "phone": {"type": "string", "description": "شماره تماس"},
+                    "company": {"type": "string", "description": "نام شرکت"},
+                    "notes": {"type": "string", "description": "یادداشت"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_project",
+            "description": "ثبت پروژه جدید",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "عنوان پروژه"},
+                    "customer_name": {"type": "string", "description": "نام مشتری مرتبط"},
+                    "notes": {"type": "string"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_opportunity",
+            "description": "ثبت فرصت فروش جدید",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "customer_name": {"type": "string"},
+                    "amount": {"type": "string", "description": "مبلغ به تومان"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_task",
+            "description": "ثبت پیگیری جدید",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "due_date": {"type": "string",
+                                 "description": "تاریخ به فرمت YYYY-MM-DD"},
+                    "priority": {"type": "string",
+                                 "enum": ["کم", "متوسط", "زیاد", "فوری"]},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_finance",
+            "description": "ثبت تراکنش مالی (درآمد یا هزینه)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "amount": {"type": "string"},
+                    "type": {"type": "string", "enum": ["درآمد", "هزینه"]},
+                    "category": {"type": "string"},
+                },
+                "required": ["title", "amount"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_customer",
+            "description": "جستجوی مشتری بر اساس نام یا شماره",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_report",
+            "description": "دریافت گزارش خلاصه از وضعیت کسب‌وکار",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "report_type": {
+                        "type": "string",
+                        "enum": ["summary", "customers", "tasks", "finance"],
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_tasks_today",
+            "description": "دریافت پیگیری‌های امروز",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+]
+
+
+======================================================================
+📄 فایل 29/63: apps\voice\urls.py
+📏 6 خط
+======================================================================
+
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("api/voice/", views.voice_api, name="voice_api"),
+]
+
+
+======================================================================
+📄 فایل 30/63: apps\voice\views.py
+📏 125 خط
+======================================================================
+
+"""
+API دستیار صوتی — نسخه HTTP (بدون WebSocket)
+"""
+import base64
+import json
+import logging
+import time
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
+from django.conf import settings
+
+from core.ai import get_stt, get_tts
+from .agent import VoiceAgent
+from .models import VoiceLog
+
+
+logger = logging.getLogger(__name__)
+
+@login_required
+@require_POST
+@csrf_protect
+def voice_api(request):
+    started = time.time()
+
+    business = getattr(request, "business", None) or getattr(request.user, "business", None)
+    if not business:
+        return JsonResponse({"ok": False, "error": "کسب‌وکار پیدا نشد."}, status=400)
+
+    audio_file = request.FILES.get("audio")
+    if not audio_file:
+        return JsonResponse({"ok": False, "error": "فایل صوتی دریافت نشد."}, status=400)
+
+    if audio_file.size > settings.VOICE_MAX_BYTES:
+        return JsonResponse({"ok": False, "error": "حجم صدا زیاد است."}, status=400)
+
+    audio_bytes = audio_file.read()
+    filename = audio_file.name or "voice.webm"
+
+    print(f">>> voice_api: name={filename} size={len(audio_bytes)} bytes")
+
+    # ═══════════ STT ═══════════
+    try:
+        from asgiref.sync import async_to_sync
+        stt = get_stt()
+        # پسوند فایل رو به whisper بده تا فرمت رو درست تشخیص بده
+        transcript = async_to_sync(stt.transcribe_with_filename)(
+            audio_bytes, filename=filename, language="fa"
+        )
+    except Exception as exc:
+        logger.exception("STT error")
+        _save_log(business, request.user, error=f"STT: {exc}")
+        return JsonResponse({"ok": False, "error": "نتونستم صدا رو تشخیص بدم."}, status=500)
+
+    if not transcript:
+        return JsonResponse(
+            {"ok": False, "error": "چیزی نفهمیدم، دوباره بگو."},
+            status=200,
+        )
+
+    # ═══════════ ۲. Agent (LLM + Tools) ═══════════
+    try:
+        agent = VoiceAgent(business=business, user=request.user)
+        from asgiref.sync import async_to_sync
+        result = async_to_sync(agent.handle)(transcript)
+    except Exception as exc:
+        logger.exception("Agent error")
+        _save_log(business, request.user, transcript=transcript, error=f"Agent: {exc}")
+        return JsonResponse(
+            {"ok": False, "error": "خطا در پردازش درخواست."},
+            status=500,
+        )
+
+    reply = result.get("reply", "")
+    actions = result.get("actions", [])
+
+    # ═══════════ ۳. تبدیل پاسخ به صدا (TTS) ═══════════
+    audio_b64 = ""
+    try:
+        tts = get_tts()
+        from asgiref.sync import async_to_sync
+        audio_out = async_to_sync(tts.synthesize)(reply)
+        audio_b64 = base64.b64encode(audio_out).decode()
+    except Exception as exc:
+        logger.warning(f"TTS error: {exc}")
+
+    # ═══════════ ۴. ذخیره لاگ ═══════════
+    duration_ms = int((time.time() - started) * 1000)
+    _save_log(
+        business, request.user,
+        transcript=transcript,
+        reply=reply,
+        actions=[a["name"] for a in actions],
+        duration_ms=duration_ms,
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "transcript": transcript,
+        "reply": reply,
+        "actions": [
+            {
+                "name": a["name"],
+                "result": a.get("result", {}),
+            }
+            for a in actions
+        ],
+        "audio": audio_b64,
+        "duration_ms": duration_ms,
+    })
+
+
+def _save_log(business, user, transcript="", reply="", actions=None,
+              error="", duration_ms=0):
+    try:
+        VoiceLog.objects.create(
+            business=business, user=user,
+            transcript=transcript, reply=reply,
+            actions=actions or [], error=error,
+            duration_ms=duration_ms,
+        )
+    except Exception:
+        logger.exception("VoiceLog save failed")
+
+
+======================================================================
+📄 فایل 31/63: colect_code.py
+📏 179 خط
+======================================================================
+
+"""
+جمع‌آوری کد پروژه — به تفکیک پوشه
+"""
+import os
+from pathlib import Path
+
+# ═══════════════ تنظیمات ═══════════════
+OUTPUT_FILE = "project_code.txt"
+INCLUDE_EXTENSIONS = {".py", ".html", ".js", ".css"}
+EXCLUDE_DIRS = {
+    "venv", "myenv", "env", ".venv",
+    "__pycache__", ".git", ".idea", ".vscode",
+    "node_modules", "staticfiles", "media",
+}
+EXCLUDE_FILES = {
+    "collect_code.py",
+    OUTPUT_FILE,
+    "db.sqlite3",
+}
+# ════════════════════════════════════════
+
+
+def should_exclude_dir(dirname):
+    return dirname in EXCLUDE_DIRS or dirname.startswith(".")
+
+
+def find_files(root):
+    results = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if not should_exclude_dir(d)]
+
+        for f in filenames:
+            if f in EXCLUDE_FILES:
+                continue
+            if Path(f).suffix.lower() in INCLUDE_EXTENSIONS:
+                full = os.path.join(dirpath, f)
+                rel = os.path.relpath(full, root)
+                results.append(rel)
+
+    return sorted(results)
+
+
+def group_by_folder(files):
+    """فایل‌ها رو بر اساس پوشه‌ی بلافصل گروه‌بندی کن"""
+    groups = {}
+    for rel in files:
+        folder = os.path.dirname(rel) or "."    # فایل‌های ریشه
+        groups.setdefault(folder, []).append(rel)
+    return groups
+
+
+def ask_folders(groups):
+    """از کاربر برای هر پوشه بپرس"""
+    print(f"\n🔍 {len(groups)} پوشه پیدا شد.\n")
+    print("برای هر پوشه یکی از گزینه‌ها رو بزن:")
+    print("  y = اضافه کن")
+    print("  n = رد کن")
+    print("  a = همه‌ی بعدی‌ها رو اضافه کن")
+    print("  q = خروج")
+    print("  (Enter = اضافه کن)\n")
+
+    selected_folders = []
+    add_all = False
+
+    folders_sorted = sorted(groups.keys())
+
+    for i, folder in enumerate(folders_sorted, 1):
+        count = len(groups[folder])
+
+        if add_all:
+            selected_folders.append(folder)
+            print(f"  ✅ [{i}/{len(folders_sorted)}] {folder}  ({count} فایل)")
+            continue
+
+        while True:
+            try:
+                ans = input(f"[{i}/{len(folders_sorted)}] 📁 {folder}  ({count} فایل) ? (y/n/a/q) ").strip().lower()
+            except KeyboardInterrupt:
+                print("\nخروج...")
+                return selected_folders
+
+            if ans == "" or ans == "y":
+                selected_folders.append(folder)
+                break
+            elif ans == "n":
+                break
+            elif ans == "a":
+                add_all = True
+                selected_folders.append(folder)
+                print("  ⚡ همه‌ی بعدی‌ها اضافه می‌شن.")
+                break
+            elif ans == "q":
+                print("\nخروج...")
+                return selected_folders
+            else:
+                print("  ❓ لطفاً y/n/a/q بزن.")
+
+    return selected_folders
+
+
+def collect(root, files):
+    output_path = os.path.join(root, OUTPUT_FILE)
+
+    total_lines = 0
+
+    with open(output_path, "w", encoding="utf-8") as out:
+        out.write("=" * 70 + "\n")
+        out.write("گزارش کد پروژه\n")
+        out.write(f"تعداد فایل‌ها: {len(files)}\n")
+        out.write("=" * 70 + "\n\n")
+
+        for i, rel in enumerate(files, 1):
+            full = os.path.join(root, rel)
+            try:
+                with open(full, "r", encoding="utf-8") as f:
+                    content = f.read()
+            except UnicodeDecodeError:
+                try:
+                    with open(full, "r", encoding="latin-1") as f:
+                        content = f.read()
+                except Exception as e:
+                    content = f"[خطا: {e}]"
+            except Exception as e:
+                content = f"[خطا: {e}]"
+
+            lines = content.count("\n") + 1
+            total_lines += lines
+
+            out.write("\n" + "=" * 70 + "\n")
+            out.write(f"📄 فایل {i}/{len(files)}: {rel}\n")
+            out.write(f"📏 {lines} خط\n")
+            out.write("=" * 70 + "\n\n")
+            out.write(content)
+            out.write("\n\n")
+
+        out.write("\n" + "=" * 70 + "\n")
+        out.write(f"جمع کل: {len(files)} فایل — {total_lines} خط\n")
+        out.write("=" * 70 + "\n")
+
+    size_mb = os.path.getsize(output_path) / (1024 * 1024)
+    print(f"\n✅ فایل ساخته شد: {output_path}")
+    print(f"📦 حجم: {size_mb:.2f} MB")
+    print(f"📄 تعداد فایل: {len(files)}")
+    print(f"📏 مجموع خطوط: {total_lines}")
+
+
+def main():
+    root = os.path.dirname(os.path.abspath(__file__))
+    print(f"📂 پوشه‌ی پروژه: {root}")
+
+    print("\n🔍 در حال جستجو...")
+    files = find_files(root)
+
+    if not files:
+        print("❌ هیچ فایلی پیدا نشد.")
+        return
+
+    groups = group_by_folder(files)
+
+    selected_folders = ask_folders(groups)
+
+    if not selected_folders:
+        print("\n⚠️ هیچ پوشه‌ای انتخاب نشد. خروج.")
+        return
+
+    # فایل‌های انتخاب‌شده رو جمع کن
+    selected_files = []
+    for folder in selected_folders:
+        selected_files.extend(groups[folder])
+
+    # مرتب‌سازی بر اساس مسیر
+    selected_files.sort()
+
+    print(f"\n📝 در حال نوشتن {len(selected_files)} فایل از {len(selected_folders)} پوشه...")
+    collect(root, selected_files)
+
+
+if __name__ == "__main__":
+    main()
+
+
+======================================================================
+📄 فایل 32/63: config\__init__.py
+📏 1 خط
+======================================================================
+
+
+
+
+======================================================================
+📄 فایل 33/63: config\asgi.py
+📏 5 خط
+======================================================================
+
+import os
+from django.core.asgi import get_asgi_application
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+application = get_asgi_application()
+
+
+======================================================================
+📄 فایل 34/63: config\settings.py
+📏 149 خط
+======================================================================
+
+"""
+تنظیمات پروژه مرداس
+"""
+from pathlib import Path
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-insecure-key")
+DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "assistant.mykaman.ir"]
+CSRF_TRUSTED_ORIGINS = [
+    f"https://{os.getenv('SITE_DOMAIN', 'merdas.mykaman.ir')}",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
+# ---------- اپلیکیشن‌ها ----------
+INSTALLED_APPS = [
+    "daphne",                          # باید قبل از runserver باشه
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "channels",
+
+    # اپ‌های پروژه
+    "apps.accounts",
+    "apps.crm",
+    "apps.voice",
+    "apps.dashboard",
+]
+
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",   # ← این رو اضافه کن
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.locale.LocaleMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # میان‌افزار تشخیص کسب‌وکار از URL
+    "apps.accounts.middleware.BusinessMiddleware",
+]
+
+ROOT_URLCONF = "config.urls"
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+                "apps.accounts.context_processors.business_context",
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
+
+# ---------- دیتابیس ----------
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+        "OPTIONS": {
+            "timeout": 20,
+        },
+    }
+}
+
+# ---------- احراز هویت ----------
+AUTH_USER_MODEL = "accounts.User"
+
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+
+
+# ---------- بین‌المللی‌سازی (فقط فارسی) ----------
+LANGUAGE_CODE = "fa"
+TIME_ZONE = "Asia/Tehran"
+USE_I18N = True
+USE_TZ = True
+
+# ---------- فایل‌های استاتیک و مدیا ----------
+STATIC_URL = "/static/"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ---------- Channels (WebSocket) ----------
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+        # اگه بعداً Redis اضافه کردی:
+        # "BACKEND": "channels_redis.core.RedisChannelLayer",
+        # "CONFIG": {"hosts": [("127.0.0.1", 6379)]},
+    }
+}
+
+# ---------- تنظیمات اختصاصی مرداس ----------
+SITE_DOMAIN = os.getenv("SITE_DOMAIN", "merdas.mykaman.ir")
+
+# حداکثر حجم فایل صوتی برای STT (بایت)
+VOICE_MAX_BYTES = 20 * 1024 * 1024   # ۲۰ مگابایت
+
+# لایه‌ی ماژولار هوش مصنوعی
+AI_CONFIG = {
+    "STT_PROVIDER": "openai",
+    "TTS_PROVIDER": "openai",
+    "LLM_PROVIDER": "openai",
+    "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", ""),
+    "STT_MODEL": "whisper-1",
+    "LLM_MODEL": "gpt-4o",
+    "TTS_MODEL": "tts-1",
+    "TTS_VOICE": "alloy",
+    "LANGUAGE": "fa",
+}
+
+
+LOGIN_URL = "/accounts/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/accounts/login/"
+
+
+VOICE_MAX_BYTES = 20 * 1024 * 1024   # ۲۰ مگابایت
+
+
+======================================================================
+📄 فایل 35/63: config\urls.py
+📏 18 خط
+======================================================================
+
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+from django.views.generic import TemplateView
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("accounts/", include("apps.accounts.urls")),   # ← همه‌ی accounts
+    path("", include("apps.voice.urls")),  
+    path("", include("apps.crm.urls")),
+    path("", include("apps.dashboard.urls")),
+    path("test-ws/", TemplateView.as_view(template_name="test_ws.html")),
+]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+
+======================================================================
+📄 فایل 36/63: config\wsgi.py
+📏 5 خط
+======================================================================
+
+import os
+from django.core.wsgi import get_wsgi_application
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+application = get_wsgi_application()
+
+
+======================================================================
+📄 فایل 37/63: core\ai\__init__.py
+📏 3 خط
+======================================================================
+
+from .factory import get_stt, get_tts, get_llm
+
+__all__ = ["get_stt", "get_tts", "get_llm"]
+
+
+======================================================================
+📄 فایل 38/63: core\ai\base.py
+📏 35 خط
+======================================================================
+
+from abc import ABC, abstractmethod
+
+
+class BaseSTT(ABC):
+    """تبدیل صدا به متن"""
+
+    @abstractmethod
+    async def transcribe(self, audio_bytes: bytes, language: str = "fa") -> str:
+        raise NotImplementedError
+
+    async def transcribe_with_filename(
+        self,
+        audio_bytes: bytes,
+        filename: str = "voice.webm",
+        language: str = "fa",
+    ) -> str:
+        """پیش‌فرض: نام فایل رو نادیده بگیر"""
+        return await self.transcribe(audio_bytes, language=language)
+
+
+class BaseTTS(ABC):
+    @abstractmethod
+    async def synthesize(self, text: str) -> bytes:
+        raise NotImplementedError
+
+
+class BaseLLM(ABC):
+    @abstractmethod
+    async def chat(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        temperature: float = 0.7,
+    ) -> dict:
+        raise NotImplementedError
+
+
+======================================================================
+📄 فایل 39/63: core\ai\exceptions.py
+📏 23 خط
+======================================================================
+
+class AIError(Exception):
+    """خطای پایه‌ی لایه‌ی AI"""
+    pass
+
+
+class STTError(AIError):
+    """خطا در تبدیل صدا به متن"""
+    pass
+
+
+class TTSError(AIError):
+    """خطا در تبدیل متن به صدا"""
+    pass
+
+
+class LLMError(AIError):
+    """خطا در ارتباط با مدل زبانی"""
+    pass
+
+
+class ProviderNotFound(AIError):
+    """provider انتخاب‌شده پیدا نشد"""
+    pass
+
+
+======================================================================
+📄 فایل 40/63: core\ai\factory.py
+📏 40 خط
+======================================================================
+
+"""
+انتخاب provider مناسب از روی تنظیمات
+"""
+from django.conf import settings
+from .base import BaseSTT, BaseTTS, BaseLLM
+from .exceptions import ProviderNotFound
+
+
+def get_stt() -> BaseSTT:
+    provider = settings.AI_CONFIG["STT_PROVIDER"]
+    if provider == "openai":
+        from .openai_provider import OpenAI_STT
+        return OpenAI_STT()
+    # اینجا می‌تونی provider های دیگه اضافه کنی:
+    # if provider == "local":
+    #     from .local_provider import LocalWhisper_STT
+    #     return LocalWhisper_STT()
+    raise ProviderNotFound(f"STT provider ناشناخته: {provider}")
+
+
+def get_tts() -> BaseTTS:
+    provider = settings.AI_CONFIG["TTS_PROVIDER"]
+    if provider == "openai":
+        from .openai_provider import OpenAI_TTS
+        return OpenAI_TTS()
+    # if provider == "elevenlabs":
+    #     from .elevenlabs_provider import ElevenLabs_TTS
+    #     return ElevenLabs_TTS()
+    raise ProviderNotFound(f"TTS provider ناشناخته: {provider}")
+
+
+def get_llm() -> BaseLLM:
+    provider = settings.AI_CONFIG["LLM_PROVIDER"]
+    if provider == "openai":
+        from .openai_provider import OpenAI_LLM
+        return OpenAI_LLM()
+    # if provider == "ollama":
+    #     from .ollama_provider import Ollama_LLM
+    #     return Ollama_LLM()
+    raise ProviderNotFound(f"LLM provider ناشناخته: {provider}")
+
+
+======================================================================
+📄 فایل 41/63: core\ai\openai_provider.py
+📏 120 خط
+======================================================================
+
+"""
+پیاده‌سازی provider های OpenAI
+"""
+import io
+import json
+from openai import AsyncOpenAI
+
+from django.conf import settings
+from .base import BaseSTT, BaseTTS, BaseLLM
+from .exceptions import STTError, TTSError, LLMError
+
+
+def _client() -> AsyncOpenAI:
+    return AsyncOpenAI(api_key=settings.AI_CONFIG["OPENAI_API_KEY"])
+
+
+# ═══════════════════════════════════════════════
+# STT (Speech-to-Text)
+# ═══════════════════════════════════════════════
+class OpenAI_STT(BaseSTT):
+
+    async def transcribe(self, audio_bytes: bytes, language: str = "fa") -> str:
+        """پیش‌فرض: webm (برای کروم/اندروید/فایرفاکس)"""
+        return await self.transcribe_with_filename(
+            audio_bytes, filename="voice.webm", language=language
+        )
+
+    async def transcribe_with_filename(
+        self,
+        audio_bytes: bytes,
+        filename: str = "voice.webm",
+        language: str = "fa",
+    ) -> str:
+        """
+        با نام فایل مشخص — برای پشتیبانی از فرمت‌های iOS (m4a, mp4)
+        """
+        try:
+            client = _client()
+            audio_file = io.BytesIO(audio_bytes)
+            audio_file.name = filename
+
+            response = await client.audio.transcriptions.create(
+                model=settings.AI_CONFIG["STT_MODEL"],   # whisper-1
+                file=audio_file,
+                language=language,
+                response_format="text",
+            )
+            # response گاهی رشته‌ست، گاهی آبجکت
+            text = response if isinstance(response, str) else response.text
+            return (text or "").strip()
+        except Exception as exc:
+            raise STTError(f"خطا در تبدیل صدا به متن: {exc}") from exc
+
+
+# ═══════════════════════════════════════════════
+# TTS (Text-to-Speech)
+# ═══════════════════════════════════════════════
+class OpenAI_TTS(BaseTTS):
+
+    async def synthesize(self, text: str) -> bytes:
+        try:
+            client = _client()
+            response = await client.audio.speech.create(
+                model=settings.AI_CONFIG["TTS_MODEL"],   # tts-1
+                voice=settings.AI_CONFIG["TTS_VOICE"],   # alloy
+                input=text,
+                response_format="mp3",
+            )
+            # پاسخ generator sync هست، نه async
+            audio = b"".join(response.iter_bytes())
+            return audio
+        except Exception as exc:
+            raise TTSError(f"خطا در تبدیل متن به صدا: {exc}") from exc
+
+
+# ═══════════════════════════════════════════════
+# LLM (Chat + Function Calling)
+# ═══════════════════════════════════════════════
+class OpenAI_LLM(BaseLLM):
+
+    async def chat(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        temperature: float = 0.7,
+    ) -> dict:
+        try:
+            client = _client()
+            kwargs = {
+                "model": settings.AI_CONFIG["LLM_MODEL"],   # gpt-4o
+                "messages": messages,
+                "temperature": temperature,
+            }
+            if tools:
+                kwargs["tools"] = tools
+                kwargs["tool_choice"] = "auto"
+
+            response = await client.chat.completions.create(**kwargs)
+            msg = response.choices[0].message
+
+            result = {
+                "content": msg.content or "",
+                "tool_calls": [],
+            }
+
+            if msg.tool_calls:
+                for tc in msg.tool_calls:
+                    try:
+                        args = json.loads(tc.function.arguments or "{}")
+                    except json.JSONDecodeError:
+                        args = {}
+                    result["tool_calls"].append({
+                        "id": tc.id,
+                        "name": tc.function.name,
+                        "arguments": args,
+                    })
+
+            return result
+        except Exception as exc:
+            raise LLMError(f"خطا در ارتباط با مدل زبانی: {exc}") from exc
+
+
+======================================================================
+📄 فایل 42/63: core\ai\prompts.py
+📏 45 خط
+======================================================================
+
+"""
+System Prompt دستیار صوتی مرداس
+"""
+
+SYSTEM_PROMPT = """تو «دستیار هوشمند اتاق فرمان برق مرداس» هستی.
+وظیفه‌ت کمک به مدیر کسب‌وکار برای مدیریت مشتریان، پروژه‌ها، فرصت‌های فروش،
+پیگیری‌ها، مالی و سایر بخش‌هاست.
+
+قوانین مهم:
+۱. همیشه فارسی و محترمانه پاسخ بده.
+۲. پاسخ‌هات کوتاه و شفاهی باشن (چون قراره خونده بشن).
+   حداکثر ۲-۳ جمله.
+۳. اگه کاربر درخواست ثبت اطلاعات کرد (مشتری جدید، پروژه، پیگیری و...)
+   حتماً از توابع موجود استفاده کن. خودت اطلاعات رو از حرف کاربر استخراج کن.
+۴. اگه اطلاعات ناقصه (مثلاً اسم مشتری رو گفت ولی شماره رو نگفت)
+   با یه سوال کوتاه بپرس.
+۵. بعد از انجام هر عملیات، تأییدیه‌ی کوتاه بده.
+   مثال: «مشتری علی رضایی ثبت شد.»
+۶. اگه کاربر درخواست گزارش داد، از توابع گزارش استفاده کن.
+۷. اگه سوال کاربر ربطی به کسب‌وکار نداشت، مؤدبانه بگو که فقط در این
+   زمینه می‌تونی کمک کنی.
+۸. هیچ‌وقت اطلاعات ساختگی نساز. اگه مطمئن نیستی، بپرس.
+
+نمونه‌ها:
+- کاربر: «یه مشتری جدید به اسم علی رضایی با شماره ۰۹۱۲۳۴۵۶۷۸۹»
+  تو: create_customer رو صدا بزن → بعد بگو «مشتری علی رضایی ثبت شد.»
+
+- کاربر: «پیگیری‌های امروز رو نشون بده»
+  تو: get_tasks رو با فیلتر امروز صدا بزن → خلاصه بگو
+
+- کاربر: «چند تا مشتری داریم؟»
+  تو: get_report رو با نوع customers صدا بزن → جواب بده
+"""
+
+
+def build_messages(user_text: str, history: list[dict] | None = None) -> list[dict]:
+    """
+    ساخت لیست پیام‌ها برای ارسال به مدل
+    """
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if history:
+        # فقط ۱۰ پیام آخر برای صرفه‌جویی در توکن
+        messages.extend(history[-10:])
+    messages.append({"role": "user", "content": user_text})
+    return messages
+
+
+======================================================================
+📄 فایل 43/63: manage.py
+📏 23 خط
+======================================================================
+
+#!/usr/bin/env python
+"""Django's command-line utility for administrative tasks."""
+import os
+import sys
+
+
+def main():
+    """Run administrative tasks."""
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+    try:
+        from django.core.management import execute_from_command_line
+    except ImportError as exc:
+        raise ImportError(
+            "Couldn't import Django. Are you sure it's installed and "
+            "available on your PYTHONPATH environment variable? Did you "
+            "forget to activate a virtual environment?"
+        ) from exc
+    execute_from_command_line(sys.argv)
+
+
+if __name__ == '__main__':
+    main()
+
+
+
+======================================================================
+📄 فایل 44/63: passenger_wsgi.py
+📏 30 خط
+======================================================================
+
+<<<<<<< HEAD
+
+
+import sys
+import os
+
+# تنظیم مسیر پروژه
+sys.path.insert(0, '/home/mykamani/voice_app/passenger_wsgi.py')
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+
+from django.core.wsgi import get_wsgi_application
+application = get_wsgi_application()
+
+=======
+
+
+import sys
+import os
+
+# تنظیم مسیر پروژه
+sys.path.insert(0, '/home/mykamani/voice_app/passenger_wsgi.py')
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+
+from django.core.wsgi import get_wsgi_application
+application = get_wsgi_application()
+
+>>>>>>> a2c94b69e0e42a901a6a9f97218defd2a293ec7d
+
+
+
+======================================================================
+📄 فایل 45/63: static\js\app.js
+📏 277 خط
+======================================================================
+
+/**
+ * مرداس — منطق اصلی
+ */
+
+// ═══════════════ Drawer ═══════════════
+window.openDrawer = function() {
+  document.getElementById("drawer")?.classList.add("show");
+  document.getElementById("drawerOverlay")?.classList.add("show");
+  document.body.style.overflow = "hidden";
+};
+
+window.closeDrawer = function() {
+  document.getElementById("drawer")?.classList.remove("show");
+  document.getElementById("drawerOverlay")?.classList.remove("show");
+  document.body.style.overflow = "";
+};
+
+// ═══════════════ Search ═══════════════
+window.focusSearch = function() {
+  const bar = document.getElementById("searchBar");
+  bar?.classList.add("show");
+  setTimeout(() => document.getElementById("search")?.focus(), 100);
+};
+
+window.closeSearch = function() {
+  document.getElementById("searchBar")?.classList.remove("show");
+  const res = document.getElementById("searchResults");
+  if (res) res.innerHTML = "";
+  const input = document.getElementById("search");
+  if (input) input.value = "";
+};
+
+// ═══════════════ CRUD (بدون تغییر خیلی) ═══════════════
+const TYPES = {
+  customer: "مشتری", project: "پروژه",
+  opportunity: "فرصت فروش", task: "پیگیری",
+  supplier: "تأمین‌کننده", colleague: "همکار",
+  competitor: "رقیب", finance: "مالی", strategy: "استراتژی",
+};
+
+let currentType = "customer";
+let editingId = null;
+
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": window.CSRF_TOKEN || "",
+    },
+    credentials: "same-origin",
+    ...options,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+window.openType = async function(type) {
+  closeDrawer();
+  currentType = type;
+  // نمایش صفحه‌ی type
+  const main = document.querySelector(".app-main");
+  if (!main) return;
+  main.innerHTML = `
+    <div class="section-head">
+      <h2>${TYPES[type] || type}</h2>
+      <a href="#" onclick="newRecord('${type}'); return false;">
+        <i class="ri-add-line"></i> افزودن
+      </a>
+    </div>
+    <div id="typeList">
+      <div class="empty-state">
+        <i class="ri-loader-4-line"></i>
+        <p>در حال بارگذاری...</p>
+      </div>
+    </div>
+  `;
+  try {
+    const items = await api(`/api/${type}/`);
+    renderTypeList(items);
+  } catch (e) {
+    document.getElementById("typeList").innerHTML = `
+      <div class="empty-state">
+        <i class="ri-error-warning-line"></i>
+        <p>خطا: ${e.message}</p>
+      </div>
+    `;
+  }
+};
+
+function renderTypeList(items) {
+  const wrap = document.getElementById("typeList");
+  if (!items.length) {
+    wrap.innerHTML = `
+      <div class="empty-state">
+        <i class="ri-inbox-line"></i>
+        <p>هنوز موردی ثبت نشده</p>
+        <button class="btn btn-primary" onclick="newRecord('${currentType}')">
+          <i class="ri-add-line"></i> افزودن اولین مورد
+        </button>
+      </div>
+    `;
+    return;
+  }
+  wrap.innerHTML = items.map(r => `
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <b style="font-size:14px;display:block;margin-bottom:4px">${esc(r.title)}</b>
+          <small style="color:var(--text-3);font-size:12px">
+            ${r.company ? esc(r.company) + " · " : ""}${r.status || ""}
+          </small>
+          ${r.notes ? `<p style="margin:8px 0 0;font-size:13px;color:var(--text-2)">${esc(r.notes)}</p>` : ""}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn btn-ghost" style="flex:1;padding:8px" onclick="editRecord(${r.id})">
+          <i class="ri-edit-line"></i> ویرایش
+        </button>
+        <button class="btn btn-danger" style="flex:1;padding:8px" onclick="deleteRecord(${r.id})">
+          <i class="ri-delete-bin-line"></i> حذف
+        </button>
+      </div>
+    </div>
+  `).join("");
+}
+
+window.newRecord = function(type) {
+  if (type) currentType = type;
+  editingId = null;
+  showEditor("ثبت " + (TYPES[currentType] || ""), {});
+};
+
+window.editRecord = async function(id) {
+  try {
+    const r = await api(`/api/${currentType}/${id}/`);
+    editingId = id;
+    showEditor("ویرایش " + (TYPES[currentType] || ""), r);
+  } catch (e) {
+    alert("خطا: " + e.message);
+  }
+};
+
+function showEditor(title, data) {
+  const main = document.querySelector(".app-main");
+  main.innerHTML = `
+    <div class="section-head">
+      <h2>${title}</h2>
+      <a href="#" onclick="location.reload(); return false;">
+        <i class="ri-arrow-right-line"></i> بازگشت
+      </a>
+    </div>
+
+    <div class="card">
+      <div class="form-group">
+        <label class="form-label">عنوان / نام *</label>
+        <input id="fTitle" class="form-input" value="${esc(data.title || "")}">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">شماره تماس</label>
+        <input id="fPhone" class="form-input" dir="ltr" value="${esc(data.phone || "")}">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">شرکت / پروژه</label>
+        <input id="fCompany" class="form-input" value="${esc(data.company || "")}">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">وضعیت</label>
+        <select id="fStatus" class="form-input">
+          <option ${data.status === "جدید" ? "selected" : ""}>جدید</option>
+          <option ${data.status === "در حال پیگیری" ? "selected" : ""}>در حال پیگیری</option>
+          <option ${data.status === "فعال" ? "selected" : ""}>فعال</option>
+          <option ${data.status === "انجام شد" ? "selected" : ""}>انجام شد</option>
+          <option ${data.status === "بایگانی" ? "selected" : ""}>بایگانی</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">یادداشت</label>
+        <textarea id="fNotes" class="form-input">${esc(data.notes || "")}</textarea>
+      </div>
+
+      <button class="btn btn-primary btn-block" onclick="saveRecord()">
+        <i class="ri-save-line"></i> ذخیره
+      </button>
+    </div>
+  `;
+}
+
+window.saveRecord = async function() {
+  const title = document.getElementById("fTitle").value.trim();
+  if (!title) { alert("عنوان الزامی است."); return; }
+
+  const payload = {
+    title,
+    phone: document.getElementById("fPhone").value.trim(),
+    company: document.getElementById("fCompany").value.trim(),
+    status: document.getElementById("fStatus").value,
+    notes: document.getElementById("fNotes").value.trim(),
+  };
+
+  try {
+    if (editingId) {
+      await api(`/api/${currentType}/${editingId}/`, {
+        method: "PUT", body: JSON.stringify(payload),
+      });
+    } else {
+      await api(`/api/${currentType}/`, {
+        method: "POST", body: JSON.stringify(payload),
+      });
+    }
+    location.reload();
+  } catch (e) {
+    alert("خطا: " + e.message);
+  }
+};
+
+window.deleteRecord = async function(id) {
+  if (!confirm("این مورد حذف شود؟")) return;
+  try {
+    await api(`/api/${currentType}/${id}/`, { method: "DELETE" });
+    openType(currentType);
+  } catch (e) {
+    alert("خطا: " + e.message);
+  }
+};
+
+// ═══════════════ Search (زنده) ═══════════════
+document.addEventListener("DOMContentLoaded", () => {
+  const searchInput = document.getElementById("search");
+  if (!searchInput) return;
+
+  let timer;
+  searchInput.addEventListener("input", () => {
+    clearTimeout(timer);
+    const q = searchInput.value.trim();
+    const res = document.getElementById("searchResults");
+    if (!q) { res.innerHTML = ""; return; }
+
+    timer = setTimeout(async () => {
+      res.innerHTML = '<div class="empty-state"><i class="ri-loader-4-line"></i></div>';
+      try {
+        const items = await api(`/api/search/?q=${encodeURIComponent(q)}`);
+        if (!items.length) {
+          res.innerHTML = '<div class="empty-state"><i class="ri-search-line"></i><p>نتیجه‌ای پیدا نشد</p></div>';
+          return;
+        }
+        res.innerHTML = items.map(r => `
+          <a href="#" class="search-result" onclick="closeSearch(); openType('${r.type}'); return false;">
+            <b>${esc(r.title)}</b>
+            <small>${esc(r.type_label)}${r.company ? " · " + esc(r.company) : ""}</small>
+          </a>
+        `).join("");
+      } catch (e) {
+        res.innerHTML = `<div class="empty-state"><p>خطا: ${e.message}</p></div>`;
+      }
+    }, 300);
+  });
+});
+
+// ═══════════════ helpers ═══════════════
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, m => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
+  }[m]));
+}
+
+// پاک کردن body overflow وقتی drawer بسته شد
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closeDrawer();
+    closeSearch();
+    window.closeVoice?.();
+  }
+});
+
+
+======================================================================
+📄 فایل 46/63: static\js\recorder.js
+📏 107 خط
+======================================================================
+
+/**
+ * VoiceRecorder — ضبط صدا با پشتیبانی iOS
+ */
+class VoiceRecorder {
+  constructor() {
+    this.recorder = null;
+    this.stream = null;
+    this.chunks = [];
+    this.mimeType = "";
+    this.extension = "webm";
+  }
+
+  // انتخاب بهترین فرمت ممکن بر اساس مرورگر
+  static pickMimeType() {
+    const candidates = [
+      { mime: "audio/webm;codecs=opus", ext: "webm" },  // کروم/اندروید/فایرفاکس
+      { mime: "audio/webm", ext: "webm" },
+      { mime: "audio/mp4;codecs=mp4a.40.2", ext: "m4a" }, // iOS Safari
+      { mime: "audio/mp4", ext: "m4a" },
+      { mime: "audio/mpeg", ext: "mp3" },
+      { mime: "audio/ogg;codecs=opus", ext: "ogg" },
+      { mime: "audio/wav", ext: "wav" },
+    ];
+
+    if (typeof MediaRecorder === "undefined") {
+      return { mime: "", ext: "webm" };
+    }
+
+    for (const c of candidates) {
+      if (MediaRecorder.isTypeSupported(c.mime)) {
+        return { mime: c.mime, ext: c.ext };
+      }
+    }
+
+    return { mime: "", ext: "webm" };
+  }
+
+  async start() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("مرورگر شما از ضبط صدا پشتیبانی نمی‌کند.");
+    }
+
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        }
+      });
+    } catch (err) {
+      if (err.name === "NotAllowedError") {
+        throw new Error("دسترسی به میکروفن رد شد.");
+      }
+      if (err.name === "NotFoundError") {
+        throw new Error("میکروفنی پیدا نشد.");
+      }
+      throw new Error("خطا در دسترسی به میکروفن.");
+    }
+
+    const picked = VoiceRecorder.pickMimeType();
+    this.mimeType = picked.mime;
+    this.extension = picked.ext;
+
+    console.log("[recorder] using:", this.mimeType || "(default)", "ext:", this.extension);
+
+    const options = this.mimeType ? { mimeType: this.mimeType } : {};
+    this.recorder = new MediaRecorder(this.stream, options);
+    this.chunks = [];
+
+    this.recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) this.chunks.push(e.data);
+    };
+
+    this.recorder.start(250);
+  }
+
+  stop() {
+    return new Promise((resolve) => {
+      if (!this.recorder || this.recorder.state === "inactive") {
+        resolve(null);
+        return;
+      }
+
+      this.recorder.onstop = () => {
+        // بلاب با mimeType درست
+        const mimeForBlob = this.mimeType || "audio/webm";
+        const blob = new Blob(this.chunks, { type: mimeForBlob });
+        this.chunks = [];
+        if (this.stream) {
+          this.stream.getTracks().forEach(t => t.stop());
+          this.stream = null;
+        }
+        resolve({
+          blob,
+          extension: this.extension,
+          mimeType: mimeForBlob,
+        });
+      };
+
+      this.recorder.stop();
+    });
+  }
+
+  isRecording() {
+    return this.recorder && this.recorder.state === "recording";
+  }
+}
+
+
+======================================================================
+📄 فایل 47/63: static\js\reports.js
+📏 376 خط
+======================================================================
+
+/**
+ * گزارش‌ها — Chart.js
+ */
+(function() {
+  console.log("[reports.js] loaded");
+
+  // رنگ‌ها از CSS
+  const css = getComputedStyle(document.documentElement);
+  const BRAND = css.getPropertyValue("--brand").trim() || "#2563eb";
+  const PURPLE = css.getPropertyValue("--purple").trim() || "#8b5cf6";
+  const GREEN = css.getPropertyValue("--green").trim() || "#10b981";
+  const RED = css.getPropertyValue("--red").trim() || "#ef4444";
+  const AMBER = css.getPropertyValue("--amber").trim() || "#f59e0b";
+  const TEXT_3 = css.getPropertyValue("--text-3").trim() || "#64748b";
+  const TEXT_4 = css.getPropertyValue("--text-4").trim() || "#94a3b8";
+  const BORDER = css.getPropertyValue("--border").trim() || "#e5e9f2";
+
+  // فرمت اعداد فارسی با کاما
+  const faNum = (n) => Number(n || 0).toLocaleString("fa-IR");
+
+  let charts = {};
+
+  // ═══════════════ Bar Options ═══════════════
+  const baseOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false,
+        labels: { font: { family: "Vazirmatn" } }
+      },
+      tooltip: {
+        bodyFont: { family: "Vazirmatn" },
+        titleFont: { family: "Vazirmatn" },
+        rtl: true,
+        textDirection: "rtl",
+      }
+    },
+    scales: {
+      x: {
+        ticks: { font: { family: "Vazirmatn", size: 11 }, color: TEXT_3 },
+        grid: { display: false },
+      },
+      y: {
+        ticks: { font: { family: "Vazirmatn", size: 11 }, color: TEXT_3 },
+        grid: { color: BORDER },
+        beginAtZero: true,
+      }
+    }
+  };
+
+  // ═══════════════ ۱. KPI ═══════════════
+  async function loadStats() {
+    try {
+      const res = await fetch("/api/stats/", { credentials: "same-origin" });
+      const s = await res.json();
+      setText("kpiCustomers", faNum(s.customers));
+      setText("kpiProjects", faNum(s.projects));
+      setText("kpiOpps", faNum(s.opportunities));
+      setText("kpiTasks", faNum(s.tasks));
+      setText("kpiIncome", faNum(s.income));
+      setText("kpiExpense", faNum(s.expense));
+    } catch (e) {
+      console.warn("[reports] stats error", e);
+    }
+  }
+
+  // ═══════════════ ۲. قیف فروش ═══════════════
+  function renderPipeline(data) {
+    const ctx = document.getElementById("chartPipeline");
+    if (!ctx) return;
+
+    if (charts.pipeline) charts.pipeline.destroy();
+
+    const labels = data.map(p => p.stage);
+    const values = data.map(p => p.count);
+
+    charts.pipeline = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: (ctx) => {
+            const chart = ctx.chart;
+            const { ctx: c, chartArea } = chart;
+            if (!chartArea) return BRAND;
+            const g = c.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
+            g.addColorStop(0, PURPLE);
+            g.addColorStop(1, BRAND);
+            return g;
+          },
+          borderRadius: 8,
+          barThickness: 18,
+        }]
+      },
+      options: {
+        ...baseOptions,
+        indexAxis: "y",
+        scales: {
+          x: {
+            ticks: { font: { family: "Vazirmatn", size: 11 }, color: TEXT_3, precision: 0 },
+            grid: { color: BORDER },
+            beginAtZero: true,
+          },
+          y: {
+            ticks: { font: { family: "Vazirmatn", size: 11 }, color: TEXT_3 },
+            grid: { display: false },
+          }
+        }
+      }
+    });
+  }
+
+  // ═══════════════ ۳. روند مالی ═══════════════
+  function renderFinance(data) {
+    const ctx = document.getElementById("chartFinance");
+    if (!ctx) return;
+
+    if (charts.finance) charts.finance.destroy();
+
+    charts.finance = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: data.map(m => m.label),
+        datasets: [
+          {
+            label: "درآمد",
+            data: data.map(m => m.income),
+            borderColor: GREEN,
+            backgroundColor: "rgba(16,185,129,.08)",
+            borderWidth: 2.5,
+            tension: .4,
+            fill: true,
+            pointRadius: 4,
+            pointBackgroundColor: GREEN,
+            pointBorderColor: "#fff",
+            pointBorderWidth: 2,
+          },
+          {
+            label: "هزینه",
+            data: data.map(m => m.expense),
+            borderColor: RED,
+            backgroundColor: "rgba(239,68,68,.08)",
+            borderWidth: 2.5,
+            tension: .4,
+            fill: true,
+            pointRadius: 4,
+            pointBackgroundColor: RED,
+            pointBorderColor: "#fff",
+            pointBorderWidth: 2,
+          }
+        ]
+      },
+      options: {
+        ...baseOptions,
+        plugins: {
+          legend: {
+            display: true,
+            position: "top",
+            labels: {
+              font: { family: "Vazirmatn", size: 12 },
+              color: TEXT_3,
+              usePointStyle: true,
+              pointStyle: "circle",
+            }
+          },
+          tooltip: {
+            bodyFont: { family: "Vazirmatn" },
+            titleFont: { family: "Vazirmatn" },
+            rtl: true,
+            callbacks: {
+              label: (c) => `${c.dataset.label}: ${faNum(c.parsed.y)} تومان`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { font: { family: "Vazirmatn", size: 11 }, color: TEXT_3 },
+            grid: { display: false },
+          },
+          y: {
+            ticks: {
+              font: { family: "Vazirmatn", size: 11 },
+              color: TEXT_3,
+              callback: (v) => faNum(v),
+            },
+            grid: { color: BORDER },
+            beginAtZero: true,
+          }
+        }
+      }
+    });
+  }
+
+  // ═══════════════ ۴. توزیع مشتری (Doughnut) ═══════════════
+  function renderCustomers(data) {
+    const ctx = document.getElementById("chartCustomers");
+    if (!ctx) return;
+
+    if (charts.customers) charts.customers.destroy();
+
+    charts.customers = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: data.labels,
+        datasets: [{
+          data: data.values,
+          backgroundColor: [
+            BRAND, GREEN, AMBER, PURPLE, RED, "#06b6d4", "#ec4899",
+          ],
+          borderWidth: 0,
+          hoverOffset: 8,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "62%",
+        plugins: {
+          legend: {
+            position: "bottom",
+            labels: {
+              font: { family: "Vazirmatn", size: 12 },
+              color: TEXT_3,
+              usePointStyle: true,
+              pointStyle: "circle",
+              padding: 12,
+            }
+          },
+          tooltip: {
+            bodyFont: { family: "Vazirmatn" },
+            titleFont: { family: "Vazirmatn" },
+            rtl: true,
+            callbacks: {
+              label: (c) => `${c.label}: ${faNum(c.parsed)} نفر`
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // ═══════════════ ۵. فعالیت هفتگی ═══════════════
+  function renderWeekly(data) {
+    const ctx = document.getElementById("chartWeekly");
+    if (!ctx) return;
+
+    if (charts.weekly) charts.weekly.destroy();
+
+    charts.weekly = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: data.map(d => d.label),
+        datasets: [{
+          data: data.map(d => d.customers),
+          backgroundColor: BRAND,
+          borderRadius: 8,
+          barThickness: 24,
+        }]
+      },
+      options: {
+        ...baseOptions,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            bodyFont: { family: "Vazirmatn" },
+            rtl: true,
+            callbacks: {
+              label: (c) => `${faNum(c.parsed.y)} مشتری جدید`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { font: { family: "Vazirmatn", size: 11 }, color: TEXT_3 },
+            grid: { display: false },
+          },
+          y: {
+            ticks: { font: { family: "Vazirmatn", size: 11 }, color: TEXT_3, precision: 0 },
+            grid: { color: BORDER },
+            beginAtZero: true,
+          }
+        }
+      }
+    });
+  }
+
+  // ═══════════════ ۶. مشتریان برتر ═══════════════
+  function renderTopCustomers(items) {
+    const wrap = document.getElementById("topCustomersWrap");
+    if (!wrap) return;
+
+    if (!items || !items.length) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <i class="ri-trophy-line"></i>
+          <p>هنوز مشتری برتر ثبت نشده</p>
+        </div>`;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table class="data-table">
+        <thead>
+          <tr><th>#</th><th>مشتری</th><th>مجموع</th></tr>
+        </thead>
+        <tbody>
+          ${items.map((c, i) => `
+            <tr>
+              <td><span class="rank">${i + 1}</span></td>
+              <td>${escapeHtml(c.title)}</td>
+              <td><b>${faNum(c.total)}</b></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // ═══════════════ ابزار ═══════════════
+  function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, m => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
+    }[m]));
+  }
+
+  // ═══════════════ فیلتر بازه ═══════════════
+  document.querySelectorAll("#filterChips .chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      document.querySelectorAll("#filterChips .chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      loadAll();
+    });
+  });
+
+  // ═══════════════ بارگذاری همه ═══════════════
+  async function loadAll() {
+    await loadStats();
+
+    try {
+      const [pipeline, monthly, weekly, topCustomers] = await Promise.all([
+        fetch("/api/reports/pipeline/", { credentials: "same-origin" }).then(r => r.json()),
+        fetch("/api/reports/monthly/", { credentials: "same-origin" }).then(r => r.json()),
+        fetch("/api/reports/weekly/", { credentials: "same-origin" }).then(r => r.json()),
+        fetch("/api/reports/top-customers/", { credentials: "same-origin" }).then(r => r.json()),
+      ]);
+
+      renderPipeline(pipeline);
+      renderFinance(monthly);
+      renderWeekly(weekly);
+      renderTopCustomers(topCustomers);
+
+      // توزیع مشتری بر اساس وضعیت (از داده‌های summary مشتق)
+      const stats = await fetch("/api/stats/", { credentials: "same-origin" }).then(r => r.json());
+      renderCustomers({
+        labels: ["مشتری", "پروژه", "فرصت", "پیگیری"],
+        values: [stats.customers, stats.projects, stats.opportunities, stats.tasks],
+      });
+    } catch (e) {
+      console.error("[reports] load error", e);
+    }
+  }
+
+  // شروع
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", loadAll);
+  } else {
+    loadAll();
+  }
+})();
+
+
+======================================================================
+📄 فایل 48/63: static\js\settings.js
+📏 52 خط
+======================================================================
+
+/**
+ * تنظیمات — آپلود لوگو + پیش‌نمایش
+ */
+(function() {
+  const input = document.getElementById("logoInput");
+  const preview = document.getElementById("logoPreview");
+  const placeholder = document.getElementById("logoPlaceholder");
+
+  if (!input) return;
+
+  input.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert("حجم لوگو باید کمتر از ۲ مگابایت باشد.");
+      input.value = "";
+      return;
+    }
+
+    // پیش‌نمایش فوری
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (preview) {
+        preview.src = ev.target.result;
+        preview.style.display = "block";
+      }
+      if (placeholder) placeholder.style.display = "none";
+    };
+    reader.readAsDataURL(file);
+
+    // آپلود به سرور
+    const fd = new FormData();
+    fd.append("logo", file);
+    fd.append("csrfmiddlewaretoken", window.CSRF_TOKEN);
+
+    fetch("/accounts/api/upload-logo/", {
+      method: "POST",
+      body: fd,
+      credentials: "same-origin",
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) {
+          console.log("[settings] لوگو آپلود شد");
+        } else {
+          alert(d.error || "خطا در آپلود");
+        }
+      })
+      .catch(() => alert("خطا در آپلود"));
+  });
+})();
+
+
+======================================================================
+📄 فایل 49/63: static\js\voice.js
+📏 222 خط
+======================================================================
+
+/**
+ * Voice Assistant — نسخه HTTP (بدون WebSocket)
+ * مناسب cPanel و هر هاست اشتراکی
+ */
+(function() {
+  console.log("[voice.js] loaded (HTTP mode)");
+
+  const modal = document.getElementById("voiceModal");
+  const btn = document.getElementById("voiceRecordBtn");
+  const statusEl = document.getElementById("voiceStatus");
+  const logEl = document.getElementById("voiceLog");
+
+  let recorder = null;
+  let isBusy = false;
+
+  // ═══════════ ابزارها ═══════════
+  function setStatus(text, type = "") {
+    if (!statusEl) return;
+    statusEl.textContent = text;
+    statusEl.className = "voice-status " + type;
+  }
+
+  function addLine(type, text) {
+    if (!logEl) return;
+    const empty = logEl.querySelector(".voice-line-empty");
+    if (empty) empty.remove();
+    const div = document.createElement("div");
+    div.className = `voice-line voice-line-${type}`;
+    div.textContent = text;
+    logEl.appendChild(div);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function clearLog() {
+    if (!logEl) return;
+    logEl.innerHTML = `
+      <div class="voice-line voice-line-empty">
+        اینجا گفتگو نمایش داده می‌شه…
+      </div>`;
+  }
+
+  function playAudio(b64) {
+    if (!b64) return;
+    try {
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "audio/mpeg" });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.onended = () => URL.revokeObjectURL(url);
+      audio.play().catch(e => console.warn("پخش صدا:", e));
+    } catch (e) {
+      console.error("[voice.js] play error", e);
+    }
+  }
+
+  function formatAction(action) {
+    const r = action.result || {};
+    if (r.ok === false) return r.error || "خطا در عملیات";
+    return r.message || action.name;
+  }
+
+  // ═══════════ ضبط صدا ═══════════
+  async function startRecording() {
+    if (isBusy) return;
+
+    if (typeof VoiceRecorder === "undefined") {
+      setStatus("ماژول ضبط بارگذاری نشده.", "error");
+      return;
+    }
+
+    if (recorder && recorder.isRecording()) return;
+
+    recorder = new VoiceRecorder();
+    try {
+      await recorder.start();
+      btn?.classList.add("recording");
+      setStatus("🔴 در حال ضبط…", "ok");
+    } catch (e) {
+      console.error("[voice.js] start error", e);
+      setStatus(e.message, "error");
+    }
+  }
+
+  async function stopRecording() {
+    if (!recorder || !recorder.isRecording()) return;
+    if (isBusy) return;
+
+    btn?.classList.remove("recording");
+    setStatus("⏳ در حال ارسال…");
+
+    const result = await recorder.stop();
+    if (!result || !result.blob || result.blob.size === 0) {
+      setStatus("صدایی ضبط نشد.", "error");
+      return;
+    }
+
+    isBusy = true;
+    await sendToServer(result.blob, result.extension, result.mimeType);
+    isBusy = false;
+  }
+
+    isBusy = true;
+    await sendToServer(blob);
+    isBusy = false;
+  }
+
+  // ═══════════ ارسال به سرور ═══════════
+  async function sendToServer(blob, extension, mimeType) {
+    const fd = new FormData();
+    const filename = `voice.${extension || "webm"}`;
+    fd.append("audio", blob, filename);
+
+    const csrf = getCSRFToken();
+
+    try {
+      const res = await fetch("/api/voice/", {
+        method: "POST",
+        body: fd,
+        credentials: "same-origin",
+        headers: csrf ? { "X-CSRFToken": csrf } : {},
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error("[voice.js] server error:", res.status, txt);
+        setStatus("خطا در سرور: " + res.status, "error");
+        addLine("error", "❌ خطای سرور " + res.status);
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        setStatus(data.error || "خطا در پردازش", "error");
+        addLine("error", "❌ " + (data.error || "خطا"));
+        return;
+      }
+
+      if (data.transcript) {
+        addLine("user", "🗣 " + data.transcript);
+      }
+
+      if (data.actions && data.actions.length) {
+        data.actions.forEach(a => {
+          addLine("action", "⚙️ " + formatAction(a));
+        });
+      }
+
+      if (data.reply) {
+        addLine("reply", "💬 " + data.reply);
+      }
+
+      if (data.audio) {
+        playAudio(data.audio);
+      }
+
+      setStatus("✅ انجام شد", "ok");
+
+      setTimeout(() => {
+        if (!isBusy) setStatus("دکمه رو نگه دار و صحبت کن");
+      }, 2500);
+
+    } catch (e) {
+      console.error("[voice.js] fetch error", e);
+      setStatus("خطا در ارتباط با سرور", "error");
+      addLine("error", "❌ " + e.message);
+    }
+  }
+  function getCSRFToken() {
+    // اول از window.CSRF_TOKEN
+    if (window.CSRF_TOKEN) return window.CSRF_TOKEN;
+    // بعد از کوکی
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : "";
+  }
+
+  // ═══════════ رویدادها ═══════════
+  if (btn) {
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      startRecording();
+    });
+    btn.addEventListener("pointerup", (e) => {
+      e.preventDefault();
+      stopRecording();
+    });
+    btn.addEventListener("pointerleave", () => {
+      if (recorder && recorder.isRecording()) stopRecording();
+    });
+    btn.addEventListener("contextmenu", (e) => e.preventDefault());
+    console.log("[voice.js] record button attached");
+  }
+
+  // FAB در Bottom Nav
+  const fab = document.querySelector(".bnav-fab");
+  if (fab) {
+    fab.addEventListener("click", () => window.openVoice());
+    console.log("[voice.js] FAB attached");
+  }
+
+  // کلیک روی overlay → بستن
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) window.closeVoice();
+    });
+  }
+
+  // ═══════════ API عمومی ═══════════
+  window.openVoice = function() {
+    console.log("[voice.js] openVoice");
+    if (modal) modal.classList.add("show");
+    setStatus("دکمه رو نگه دار و صحبت کن");
+  };
+
+  window.closeVoice = function() {
+    console.log("[voice.js] closeVoice");
+    if (modal) modal.classList.remove("show");
+    if (recorder && recorder.isRecording()) recorder.stop();
+  };
+
+  console.log("[voice.js] ready");
+})();
+
+
+======================================================================
+📄 فایل 50/63: templates\accounts\login.html
+📏 43 خط
+======================================================================
+
+{% load static %}
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ورود به مرداس</title>
+<link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">⚡</div>
+    <h1>اتاق فرمان مرداس</h1>
+    <p class="auth-sub">به پنل مدیریت کسب‌وکار خود وارد شوید</p>
+
+    {% if form.errors %}
+      <div class="alert alert-error">نام کاربری یا رمز عبور اشتباه است.</div>
+    {% endif %}
+    {% if messages %}
+      {% for m in messages %}
+        <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <label>نام کاربری</label>
+      <input name="username" class="form-input" required autofocus dir="ltr">
+
+      <label>رمز عبور</label>
+      <input name="password" type="password" class="form-input" required dir="ltr">
+
+      <button type="submit" class="btn-primary">ورود</button>
+    </form>
+
+    <div class="auth-footer">
+      حساب ندارید؟ <a href="{% url 'register' %}">ثبت‌نام کسب‌وکار جدید</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+
+
+======================================================================
+📄 فایل 51/63: templates\accounts\profile.html
+📏 52 خط
+======================================================================
+
+{% extends "base.html" %}
+
+{% block title %}پروفایل من{% endblock %}
+
+{% block content %}
+<section class="panel show">
+  <a href="/" class="back">← بازگشت به اتاق فرمان</a>
+  <h2>👤 پروفایل من</h2>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <h3>اطلاعات شخصی</h3>
+  <form method="post" class="settings-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="profile">
+    <div class="form-row">
+      <div>
+        <label>نام</label>
+        {{ profile_form.first_name }}
+      </div>
+      <div>
+        <label>نام خانوادگی</label>
+        {{ profile_form.last_name }}
+      </div>
+    </div>
+    <label>ایمیل</label>
+    {{ profile_form.email }}
+    <label>موبایل</label>
+    {{ profile_form.phone }}
+    <button type="submit" class="save">ذخیره پروفایل</button>
+  </form>
+
+  <hr style="margin:30px 0">
+
+  <h3>تغییر رمز عبور</h3>
+  <form method="post" class="settings-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="password">
+    <label>رمز فعلی</label>
+    {{ password_form.old_password }}
+    <label>رمز جدید</label>
+    {{ password_form.new_password1 }}
+    <label>تکرار رمز جدید</label>
+    {{ password_form.new_password2 }}
+    <button type="submit" class="save">تغییر رمز</button>
+  </form>
+</section>
+{% endblock %}
+
+
+======================================================================
+📄 فایل 52/63: templates\accounts\register.html
+📏 59 خط
+======================================================================
+
+{% load static %}
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ثبت‌نام کسب‌وکار — مرداس</title>
+<link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card auth-card-wide">
+    <div class="auth-logo">⚡</div>
+    <h1>ثبت‌نام کسب‌وکار جدید</h1>
+    <p class="auth-sub">چند لحظه‌ای پنل اختصاصی شما آماده می‌شه</p>
+
+    {% if form.errors %}
+      <div class="alert alert-error">
+        {% for field, errors in form.errors.items %}
+          {% for e in errors %}<div>{{ e }}</div>{% endfor %}
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" class="auth-form">
+      {% csrf_token %}
+      <label>نام کسب‌وکار</label>
+      {{ form.business_name }}
+
+      <label>شماره موبایل</label>
+      {{ form.phone }}
+
+      <label>نام کاربری</label>
+      {{ form.username }}
+
+      <label>ایمیل (اختیاری)</label>
+      {{ form.email }}
+
+      <div class="form-row">
+        <div>
+          <label>رمز عبور</label>
+          {{ form.password1 }}
+        </div>
+        <div>
+          <label>تکرار رمز عبور</label>
+          {{ form.password2 }}
+        </div>
+      </div>
+
+      <button type="submit" class="btn-primary">ساخت کسب‌وکار</button>
+    </form>
+
+    <div class="auth-footer">
+      قبلاً ثبت‌نام کردی؟ <a href="{% url 'login' %}">ورود</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+
+
+======================================================================
+📄 فایل 53/63: templates\accounts\settings.html
+📏 67 خط
+======================================================================
+
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}تنظیمات کسب‌وکار{% endblock %}
+
+{% block content %}
+<section class="panel show">
+  <a href="/" class="back">← بازگشت به اتاق فرمان</a>
+  <h2>⚙️ تنظیمات کسب‌وکار</h2>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="settings-form">
+    {% csrf_token %}
+
+    <div class="settings-section">
+      <h3>اطلاعات پایه</h3>
+      <label>نام کسب‌وکار</label>
+      {{ form.name }}
+
+      <label>شناسه URL (لاتین)</label>
+      {{ form.slug }}
+      <small class="help">این آدرس یکتای کسب‌وکار شماست.</small>
+    </div>
+
+    <div class="settings-section">
+      <h3>هویت بصری</h3>
+
+      <label>لوگو فعلی</label>
+      <div class="logo-preview-wrap">
+        {% if business.logo %}
+          <img id="logoPreview" src="{{ business.logo.url }}" class="logo-preview" alt="لوگو">
+        {% else %}
+          <img id="logoPreview" src="" class="logo-preview" style="display:none" alt="لوگو">
+          <div id="logoPlaceholder" class="logo-preview logo-placeholder">⚡</div>
+        {% endif %}
+      </div>
+
+      <label>آپلود لوگوی جدید</label>
+      <input type="file" id="logoInput" accept="image/*" class="form-input">
+      <small class="help">حداکثر ۲ مگابایت — PNG یا JPG</small>
+
+      <label>رنگ برند</label>
+      {{ form.brand_color }}
+    </div>
+
+    <div class="settings-section">
+      <h3>اطلاعات تماس</h3>
+      <label>تلفن</label>
+      {{ form.phone }}
+
+      <label>آدرس</label>
+      {{ form.address }}
+    </div>
+
+    <button type="submit" class="save">ذخیره تنظیمات</button>
+  </form>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/settings.js' %}"></script>
+{% endblock %}
+
+
+======================================================================
+📄 فایل 54/63: templates\accounts\user_form.html
+📏 47 خط
+======================================================================
+
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<section class="panel show">
+  <a href="{% url 'accounts_users' %}" class="back">← بازگشت به کاربران</a>
+  <h2>{{ title }}</h2>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" class="settings-form">
+    {% csrf_token %}
+    <label>نام کاربری</label>
+    {{ form.username }}
+
+    <div class="form-row">
+      <div>
+        <label>نام</label>
+        {{ form.first_name }}
+      </div>
+      <div>
+        <label>نام خانوادگی</label>
+        {{ form.last_name }}
+      </div>
+    </div>
+
+    <label>ایمیل</label>
+    {{ form.email }}
+
+    <label>موبایل</label>
+    {{ form.phone }}
+
+    <label>نقش</label>
+    {{ form.role }}
+
+    <label>رمز عبور {% if edit_user %}(برای تغییر پر کن){% endif %}</label>
+    {{ form.password }}
+
+    <button type="submit" class="save">ذخیره</button>
+  </form>
+</section>
+{% endblock %}
+
+
+======================================================================
+📄 فایل 55/63: templates\accounts\users.html
+📏 62 خط
+======================================================================
+
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}مدیریت کاربران{% endblock %}
+
+{% block content %}
+<section class="panel show">
+  <a href="/" class="back">← بازگشت به اتاق فرمان</a>
+  <div class="section-head">
+    <h2>👥 مدیریت کاربران</h2>
+    <a href="{% url 'accounts_user_create' %}" class="btn-primary">＋ افزودن کاربر</a>
+  </div>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="user-list">
+    {% for u in users %}
+      <div class="user-row">
+        <div class="user-avatar">{{ u.username|first|upper }}</div>
+        <div class="user-info">
+          <b>{{ u.get_full_name|default:u.username }}</b>
+          <small>
+            {{ u.get_role_display }}
+            {% if u == user %} · (شما){% endif %}
+          </small>
+          {% if u.email %}<small>{{ u.email }}</small>{% endif %}
+        </div>
+        <div class="user-actions">
+          <a href="{% url 'accounts_user_edit' u.id %}" class="btn-small">ویرایش</a>
+          {% if u != user and u.role != "owner" %}
+            <button class="btn-small btn-danger"
+                    onclick="deleteUser({{ u.id }})">حذف</button>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function deleteUser(id) {
+  if (!confirm("این کاربر حذف شود؟")) return;
+  fetch(`/accounts/users/${id}/delete/`, {
+    method: "POST",
+    headers: { "X-CSRFToken": window.CSRF_TOKEN },
+    credentials: "same-origin",
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) location.reload();
+    else alert(d.error || "خطا");
+  })
+  .catch(() => alert("خطا در حذف"));
+}
+</script>
+{% endblock %}
+
+
+======================================================================
+📄 فایل 56/63: templates\base.html
+📏 166 خط
+======================================================================
+
+{% load static %}
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="{{ business.brand_color|default:'#2563eb' }}">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>{% block title %}اتاق فرمان {{ business.name|default:"مرداس" }}{% endblock %}</title>
+
+<!-- فونت وزیرمتن -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+
+<!-- آیکون‌ها -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css">
+
+<!-- استایل اپ -->
+<link rel="stylesheet" href="{% static 'css/app.css' %}">
+{% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<!-- ═══════════════ Drawer Menu (منوی کشویی) ═══════════════ -->
+<div id="drawerOverlay" class="drawer-overlay" onclick="closeDrawer()"></div>
+<aside id="drawer" class="drawer">
+  <div class="drawer-head">
+    <div class="drawer-brand">
+      {% if business.logo %}
+        <img src="{{ business.logo.url }}" alt="لوگو" class="drawer-logo">
+      {% else %}
+        <div class="drawer-logo drawer-logo-fallback">⚡</div>
+      {% endif %}
+      <div>
+        <b>{{ business.name|default:"مرداس" }}</b>
+        <small>{{ user.get_full_name|default:user.username }}</small>
+      </div>
+    </div>
+  </div>
+
+  <nav class="drawer-nav">
+    <a href="/" class="drawer-item {% if request.path == '/' %}active{% endif %}">
+      <i class="ri-dashboard-3-line"></i><span>اتاق فرمان</span>
+    </a>
+    <a href="/reports/" class="drawer-item {% if '/reports' in request.path %}active{% endif %}">
+      <i class="ri-bar-chart-box-line"></i><span>گزارش‌ها</span>
+    </a>
+
+    <div class="drawer-sep">ماژول‌ها</div>
+
+    <a href="#" data-open-type="customer" class="drawer-item">
+      <i class="ri-user-3-line"></i><span>مشتریان</span>
+    </a>
+    <a href="#" data-open-type="project" class="drawer-item">
+      <i class="ri-building-2-line"></i><span>پروژه‌ها</span>
+    </a>
+    <a href="#" data-open-type="opportunity" class="drawer-item">
+      <i class="ri-line-chart-line"></i><span>فرصت فروش</span>
+    </a>
+    <a href="#" data-open-type="task" class="drawer-item">
+      <i class="ri-pushpin-line"></i><span>پیگیری‌ها</span>
+    </a>
+    <a href="#" data-open-type="finance" class="drawer-item">
+      <i class="ri-money-dollar-circle-line"></i><span>مالی</span>
+    </a>
+    <a href="#" data-open-type="supplier" class="drawer-item">
+      <i class="ri-truck-line"></i><span>تأمین‌کنندگان</span>
+    </a>
+    <a href="#" data-open-type="colleague" class="drawer-item">
+      <i class="ri-team-line"></i><span>همکاران</span>
+    </a>
+
+    <div class="drawer-sep">مدیریت</div>
+
+    {% if user.role == "owner" or user.role == "admin" %}
+    <a href="{% url 'accounts_settings' %}" class="drawer-item">
+      <i class="ri-settings-3-line"></i><span>تنظیمات کسب‌وکار</span>
+    </a>
+    <a href="{% url 'accounts_users' %}" class="drawer-item">
+      <i class="ri-group-line"></i><span>کاربران</span>
+    </a>
+    {% endif %}
+    <a href="{% url 'accounts_profile' %}" class="drawer-item">
+      <i class="ri-account-circle-line"></i><span>پروفایل من</span>
+    </a>
+    <a href="{% url 'logout' %}" class="drawer-item drawer-item-danger">
+      <i class="ri-logout-box-line"></i><span>خروج</span>
+    </a>
+  </nav>
+</aside>
+
+<!-- ═══════════════ Top App Bar ═══════════════ -->
+<header class="appbar">
+  <button class="appbar-btn" onclick="openDrawer()" aria-label="منو">
+    <i class="ri-menu-line"></i>
+  </button>
+
+  <div class="appbar-title">
+    {% block appbar_title %}{{ business.name|default:"اتاق فرمان" }}{% endblock %}
+  </div>
+
+  <button class="appbar-btn" onclick="focusSearch()" aria-label="جستجو">
+    <i class="ri-search-line"></i>
+  </button>
+</header>
+
+<!-- جستجوی سراسری (کشویی از بالا) -->
+<div id="searchBar" class="search-bar">
+  <div class="search-input-wrap">
+    <i class="ri-search-line"></i>
+    <input id="search" type="search" placeholder="جست‌وجو در مشتری، پروژه، یادداشت...">
+    <button class="search-close" onclick="closeSearch()">
+      <i class="ri-close-line"></i>
+    </button>
+  </div>
+  <div id="searchResults" class="search-results"></div>
+</div>
+
+<!-- ═══════════════ محتوا ═══════════════ -->
+<main class="app-main">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- ═══════════════ Bottom Nav ═══════════════ -->
+<nav class="bottom-nav">
+  <a href="/" class="bnav-item {% if request.path == '/' %}active{% endif %}">
+    <i class="ri-home-4-line"></i><span>خانه</span>
+  </a>
+  <a href="#" onclick="openType('customer'); return false;" class="bnav-item">
+    <i class="ri-user-3-line"></i><span>مشتری</span>
+  </a>
+
+  <!-- دکمه دستیار صوتی (وسط) -->
+  <button class="bnav-fab" onclick="openVoice()" aria-label="دستیار صوتی">
+    <i class="ri-mic-line"></i>
+  </button>
+
+  <a href="/reports/" class="bnav-item {% if '/reports' in request.path %}active{% endif %}">
+    <i class="ri-bar-chart-box-line"></i><span>گزارش</span>
+  </a>
+  <button class="bnav-item" onclick="openDrawer()">
+    <i class="ri-apps-2-line"></i><span>بیشتر</span>
+  </button>
+</nav>
+
+<!-- ═══════════════ مودال صوتی ═══════════════ -->
+{% include "partials/voice_modal.html" %}
+
+<!-- ═══════════════ فایل‌های JS ═══════════════ -->
+<script>
+window.BUSINESS = {
+  id: {{ business.id|default:"null" }},
+  name: "{{ business.name|default:''|escapejs }}",
+  slug: "{{ business.slug|default:''|escapejs }}",
+  color: "{{ business.brand_color|default:'#2563eb' }}",
+};
+window.CSRF_TOKEN = "{{ csrf_token }}";
+</script>
+<script src="{% static 'js/recorder.js' %}"></script>
+<script src="{% static 'js/voice.js' %}"></script>
+<script src="{% static 'js/app.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
+
+
+======================================================================
+📄 فایل 57/63: templates\dashboard\home.html
+📏 185 خط
+======================================================================
+
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}اتاق فرمان — {{ business.name }}{% endblock %}
+
+{% block content %}
+
+<!-- ═══ KPI Cards ═══ -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-icon blue"><i class="ri-user-3-line"></i></div>
+    <div class="kpi-num">{{ stats.customers_total }}</div>
+    <div class="kpi-label">مشتری کل</div>
+    {% if stats.customers_new_week %}
+      <div class="kpi-trend">
+        <i class="ri-arrow-up-line"></i>
+        {{ stats.customers_new_week }} این هفته
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-icon green"><i class="ri-building-2-line"></i></div>
+    <div class="kpi-num">{{ stats.projects_active }}</div>
+    <div class="kpi-label">پروژه فعال</div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-icon amber"><i class="ri-line-chart-line"></i></div>
+    <div class="kpi-num">{{ stats.opportunities_open }}</div>
+    <div class="kpi-label">فرصت فروش باز</div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-icon purple"><i class="ri-pushpin-line"></i></div>
+    <div class="kpi-num">{{ stats.tasks_open }}</div>
+    <div class="kpi-label">پیگیری باز</div>
+    {% if stats.tasks_overdue %}
+      <div class="kpi-trend down">
+        <i class="ri-alert-line"></i>
+        {{ stats.tasks_overdue }} عقب‌افتاده
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ═══ ماژول‌ها ═══ -->
+<div class="section-head">
+  <h2>ماژول‌های کسب‌وکار</h2>
+</div>
+
+<div class="modules-grid">
+  <button class="module" onclick="openType('customer')">
+    <div class="module-icon mi-blue"><i class="ri-user-3-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">مشتریان</div>
+      <div class="module-count">{{ stats.customers_total }} مورد</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('project')">
+    <div class="module-icon mi-green"><i class="ri-building-2-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">پروژه‌ها</div>
+      <div class="module-count">{{ stats.projects_active }} فعال</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('opportunity')">
+    <div class="module-icon mi-amber"><i class="ri-line-chart-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">فرصت فروش</div>
+      <div class="module-count">{{ stats.opportunities_open }} باز</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('task')">
+    <div class="module-icon mi-purple"><i class="ri-pushpin-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">پیگیری‌ها</div>
+      <div class="module-count">{{ stats.tasks_open }} باز</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('finance')">
+    <div class="module-icon mi-cyan"><i class="ri-money-dollar-circle-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">مالی</div>
+      <div class="module-count">{{ stats.income|floatformat:0 }} درآمد</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('supplier')">
+    <div class="module-icon mi-indigo"><i class="ri-truck-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">تأمین‌کنندگان</div>
+      <div class="module-count">مدیریت</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('colleague')">
+    <div class="module-icon mi-pink"><i class="ri-team-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">همکاران</div>
+      <div class="module-count">{{ stats.colleagues }} نفر</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('strategy')">
+    <div class="module-icon mi-red"><i class="ri-focus-3-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">استراتژی</div>
+      <div class="module-count">اهداف و چشم‌انداز</div>
+    </div>
+  </button>
+</div>
+
+<!-- ═══ مالی ═══ -->
+<div class="section-head">
+  <h2>خلاصه مالی</h2>
+  <a href="/reports/">گزارش کامل ←</a>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-icon green"><i class="ri-arrow-down-line"></i></div>
+    <div class="kpi-num" style="font-size: 18px">{{ stats.income|floatformat:0 }}</div>
+    <div class="kpi-label">درآمد (تومان)</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-icon red"><i class="ri-arrow-up-line"></i></div>
+    <div class="kpi-num" style="font-size: 18px">{{ stats.expense|floatformat:0 }}</div>
+    <div class="kpi-label">هزینه (تومان)</div>
+  </div>
+</div>
+
+<!-- ═══ قیف فروش ═══ -->
+<div class="section-head">
+  <h2>قیف فروش</h2>
+</div>
+
+<div class="pipeline">
+  {% for p in pipeline %}
+    <div class="pipeline-row">
+      <span class="pipeline-stage">{{ p.stage }}</span>
+      <div class="pipeline-bar-wrap">
+        <div class="pipeline-bar" style="width: {{ p.percent }}%"></div>
+      </div>
+      <span class="pipeline-count">{{ p.count }}</span>
+    </div>
+  {% empty %}
+    <div class="empty-state">
+      <i class="ri-filter-3-line"></i>
+      <p>هنوز فرصتی ثبت نشده</p>
+    </div>
+  {% endfor %}
+</div>
+
+<!-- ═══ پیگیری امروز ═══ -->
+<div class="section-head">
+  <h2>پیگیری‌های امروز</h2>
+  <a href="#" onclick="openType('task')">همه ←</a>
+</div>
+
+<div class="today-list">
+  {% for t in today_tasks %}
+    <div class="today-item">
+      <div class="today-check {% if t.is_done %}done{% endif %}">
+        <i class="ri-check-line"></i>
+      </div>
+      <div class="today-body">
+        <div class="today-title">{{ t.title }}</div>
+        <div class="today-meta">{{ t.due_date|date:"Y/m/d" }}</div>
+      </div>
+      <span class="today-priority priority-{{ t.priority_class }}">{{ t.priority }}</span>
+    </div>
+  {% empty %}
+    <div class="empty-state">
+      <i class="ri-calendar-check-line"></i>
+      <p>امروز پیگیری‌ای نداری</p>
+    </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
+
+
+======================================================================
+📄 فایل 58/63: templates\dashboard\reports.html
+📏 96 خط
+======================================================================
+
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}گزارش‌ها — {{ business.name }}{% endblock %}
+{% block appbar_title %}گزارش‌ها{% endblock %}
+
+{% block content %}
+
+<!-- ═══ فیلتر بازه ═══ -->
+<div class="filter-chips" id="filterChips">
+  <button class="chip active" data-range="7">۷ روز اخیر</button>
+  <button class="chip" data-range="30">۳۰ روز اخیر</button>
+  <button class="chip" data-range="90">۳ ماه اخیر</button>
+  <button class="chip" data-range="365">امسال</button>
+</div>
+
+<!-- ═══ KPI ═══ -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-icon blue"><i class="ri-user-3-line"></i></div>
+    <div class="kpi-num" id="kpiCustomers">—</div>
+    <div class="kpi-label">مشتری کل</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-icon green"><i class="ri-building-2-line"></i></div>
+    <div class="kpi-num" id="kpiProjects">—</div>
+    <div class="kpi-label">پروژه فعال</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-icon amber"><i class="ri-line-chart-line"></i></div>
+    <div class="kpi-num" id="kpiOpps">—</div>
+    <div class="kpi-label">فرصت باز</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-icon purple"><i class="ri-pushpin-line"></i></div>
+    <div class="kpi-num" id="kpiTasks">—</div>
+    <div class="kpi-label">پیگیری باز</div>
+  </div>
+</div>
+
+<!-- ═══ خلاصه مالی ═══ -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-icon green"><i class="ri-arrow-down-line"></i></div>
+    <div class="kpi-num" style="font-size:18px" id="kpiIncome">—</div>
+    <div class="kpi-label">درآمد (تومان)</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-icon red"><i class="ri-arrow-up-line"></i></div>
+    <div class="kpi-num" style="font-size:18px" id="kpiExpense">—</div>
+    <div class="kpi-label">هزینه (تومان)</div>
+  </div>
+</div>
+
+<!-- ═══ نمودار قیف فروش ═══ -->
+<div class="chart-card" style="margin-top:14px">
+  <h3><i class="ri-filter-3-line"></i> قیف فروش</h3>
+  <div class="chart-wrap"><canvas id="chartPipeline"></canvas></div>
+</div>
+
+<!-- ═══ نمودار روند مالی ═══ -->
+<div class="chart-card">
+  <h3><i class="ri-line-chart-line"></i> روند مالی ۶ ماه</h3>
+  <div class="chart-wrap"><canvas id="chartFinance"></canvas></div>
+</div>
+
+<!-- ═══ نمودار توزیع مشتری ═══ -->
+<div class="chart-card">
+  <h3><i class="ri-pie-chart-2-line"></i> توزیع مشتریان</h3>
+  <div class="chart-wrap" style="height:240px"><canvas id="chartCustomers"></canvas></div>
+</div>
+
+<!-- ═══ نمودار فعالیت هفتگی ═══ -->
+<div class="chart-card">
+  <h3><i class="ri-calendar-line"></i> فعالیت ۷ روز اخیر</h3>
+  <div class="chart-wrap"><canvas id="chartWeekly"></canvas></div>
+</div>
+
+<!-- ═══ جدول مشتریان برتر ═══ -->
+<div class="chart-card">
+  <h3><i class="ri-trophy-line"></i> مشتریان برتر</h3>
+  <div id="topCustomersWrap">
+    <div class="empty-state">
+      <i class="ri-loader-4-line"></i>
+      <p>در حال بارگذاری...</p>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/reports.js' %}"></script>
+{% endblock %}
+
+
+======================================================================
+📄 فایل 59/63: templates\partials\voice_modal.html
+📏 28 خط
+======================================================================
+
+<div id="voiceModal" class="voice-modal" onclick="if(event.target === this) closeVoice()">
+  <div class="voice-panel">
+    <div class="voice-drag"></div>
+
+    <div class="voice-head">
+      <h3><i class="ri-mic-line" style="color:var(--brand)"></i> دستیار صوتی مرداس</h3>
+      <button class="voice-close" onclick="closeVoice()">
+        <i class="ri-close-line"></i>
+      </button>
+    </div>
+
+    <div class="voice-status" id="voiceStatus">
+      دکمه رو نگه دار و صحبت کن
+    </div>
+
+    <div class="voice-record-wrap">
+      <button id="voiceRecordBtn" class="voice-record-btn">
+        <i class="ri-mic-line"></i>
+      </button>
+    </div>
+
+    <div class="voice-log" id="voiceLog">
+      <div class="voice-line voice-line-empty">
+        اینجا گفتگو نمایش داده می‌شه…
+      </div>
+    </div>
+  </div>
+</div>
+
+
+======================================================================
+📄 فایل 60/63: templates\registration\login.html
+📏 33 خط
+======================================================================
+
+{% load static %}
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>ورود به مرداس</title>
+<link rel="stylesheet" href="{% static 'css/app.css' %}">
+<style>
+  .login-wrap{max-width:400px;margin:80px auto;background:#fff;padding:30px;
+    border-radius:20px;box-shadow:0 8px 30px rgba(15,23,42,.08)}
+  .login-wrap h1{margin-top:0;font-size:22px;text-align:center}
+  .login-wrap input{width:100%;padding:12px;border:1px solid #cbd5e1;
+    border-radius:11px;margin:6px 0 14px}
+  .login-wrap button{width:100%;background:#2563eb;color:#fff;
+    padding:13px;border-radius:11px;font-size:15px}
+  .err{color:#dc2626;font-size:13px;margin-bottom:10px}
+</style>
+</head>
+<body>
+<div class="login-wrap">
+  <h1>⚡ اتاق فرمان مرداس</h1>
+  {% if form.errors %}<div class="err">نام کاربری یا رمز اشتباه است.</div>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <label>نام کاربری</label>
+    <input name="username" required autofocus>
+    <label>رمز عبور</label>
+    <input name="password" type="password" required>
+    <button type="submit">ورود</button>
+  </form>
+</div>
+</body>
+</html>
+
+
+======================================================================
+📄 فایل 61/63: templates\test_ws.html
+📏 155 خط
+======================================================================
+
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>تست WebSocket مرداس</title>
+<style>
+  body{font-family:Tahoma,sans-serif;padding:20px;max-width:800px;margin:auto}
+  button{padding:15px 30px;font-size:16px;border:0;border-radius:10px;
+         background:#2563eb;color:#fff;cursor:pointer}
+  button:disabled{background:#94a3b8}
+  button.recording{background:#dc2626}
+  #log{background:#0f172a;color:#e2e8f0;padding:15px;border-radius:10px;
+       min-height:300px;white-space:pre-wrap;font-family:monospace;
+       direction:ltr;text-align:left;margin-top:20px;overflow:auto;max-height:500px}
+  .status{padding:10px;border-radius:8px;margin:10px 0;font-weight:bold}
+  .ok{background:#dcfce7;color:#166534}
+  .err{background:#fee2e2;color:#991b1b}
+  .info{background:#dbeafe;color:#1e40af}
+</style>
+</head>
+<body>
+
+<h2>🎤 تست دستیار صوتی مرداس</h2>
+<div id="status" class="status info">در حال اتصال...</div>
+
+<button id="btn" disabled>🎤 نگه دار و صحبت کن</button>
+
+<div id="log"></div>
+
+<script>
+const logEl = document.getElementById("log");
+const statusEl = document.getElementById("status");
+const btn = document.getElementById("btn");
+
+function log(msg) {
+  logEl.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function setStatus(msg, type="info") {
+  statusEl.textContent = msg;
+  statusEl.className = "status " + type;
+}
+
+// ---------- اتصال WebSocket ----------
+const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+const wsUrl = `${protocol}//${location.host}/ws/voice/`;
+log("→ اتصال به " + wsUrl);
+
+const ws = new WebSocket(wsUrl);
+
+ws.onopen = () => {
+  log("✅ WebSocket باز شد");
+};
+
+ws.onclose = (e) => {
+  log(`❌ WebSocket بسته شد — کد: ${e.code} — دلیل: ${e.reason || "نامشخص"}`);
+  if (e.code === 4001) setStatus("❌ لاگین نیستی! اول برو /admin/ و لاگین کن", "err");
+  else if (e.code === 4002) setStatus("❌ کسب‌وکار پیدا نشد", "err");
+  else setStatus("❌ اتصال بسته شد (" + e.code + ")", "err");
+  btn.disabled = true;
+};
+
+ws.onerror = (e) => {
+  log("⚠️ خطای WebSocket رخ داد");
+};
+
+ws.onmessage = (e) => {
+  let m;
+  try { m = JSON.parse(e.data); } catch { log("← (غیر JSON) " + e.data); return; }
+  log("← " + JSON.stringify(m).slice(0, 300));
+
+  switch (m.type) {
+    case "ready":
+      setStatus("✅ آماده — دکمه رو نگه دار", "ok");
+      btn.disabled = false;
+      break;
+    case "recording":
+      setStatus("🔴 در حال ضبط...", "info");
+      break;
+    case "transcript":
+      log("📝 متن: " + m.text);
+      break;
+    case "action":
+      log("⚙️ عملیات: " + m.name + " — " + JSON.stringify(m.result));
+      break;
+    case "reply_text":
+      log("💬 پاسخ: " + m.text);
+      setStatus("✅ پاسخ داده شد", "ok");
+      break;
+    case "reply_audio":
+      playAudio(m.data);
+      break;
+    case "error":
+      log("❌ خطا: " + m.message);
+      setStatus("❌ " + m.message, "err");
+      break;
+  }
+};
+
+function playAudio(b64) {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const blob = new Blob([bytes], { type: "audio/mpeg" });
+  new Audio(URL.createObjectURL(blob)).play();
+  log("🔊 پخش صدا");
+}
+
+// ---------- ضبط صدا ----------
+let recorder = null;
+let chunks = [];
+
+btn.onmousedown = async () => {
+  if (ws.readyState !== WebSocket.OPEN) {
+    log("⚠️ WebSocket آماده نیست");
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+    chunks = [];
+
+    recorder.ondataavailable = async (e) => {
+      if (e.data.size === 0) return;
+      if (ws.readyState !== WebSocket.OPEN) return;
+      const buf = await e.data.arrayBuffer();
+      const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+      ws.send(JSON.stringify({ type: "audio", data: b64 }));
+    };
+
+    ws.send(JSON.stringify({ type: "start" }));
+    recorder.start(250);
+    btn.classList.add("recording");
+    btn.textContent = "🔴 در حال ضبط... (رها کن تا بفرسته)";
+    log("🎤 ضبط شروع شد");
+  } catch (err) {
+    log("❌ خطای میکروفن: " + err.message);
+    setStatus("دسترسی به میکروفن رد شد", "err");
+  }
+};
+
+btn.onmouseup = btn.onmouseleave = () => {
+  if (!recorder || recorder.state === "inactive") return;
+  recorder.stop();
+  recorder.stream.getTracks().forEach(t => t.stop());
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "stop" }));
+  }
+  btn.classList.remove("recording");
+  btn.textContent = "🎤 نگه دار و صحبت کن";
+  log("⏹ ضبط متوقف شد — منتظر پردازش...");
+  setStatus("⏳ در حال پردازش...", "info");
+};
+</script>
+
+</body>
+</html>
+
+
+======================================================================
+📄 فایل 62/63: test_ai.py
+📏 36 خط
+======================================================================
+
+"""
+تست لایه‌ی AI
+اجرا: python test_ai.py
+"""
+import os
+import django
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+django.setup()
+
+import asyncio
+from core.ai import get_llm, get_tts
+
+
+async def main():
+    # ۱. تست LLM
+    print("→ تست LLM...")
+    llm = get_llm()
+    result = await llm.chat([
+        {"role": "user", "content": "سلام، تو کی هستی؟ در یک جمله جواب بده."}
+    ])
+    print("پاسخ LLM:", result["content"])
+    print("tool_calls:", result["tool_calls"])
+
+    # ۲. تست TTS
+    print("\n→ تست TTS...")
+    tts = get_tts()
+    audio = await tts.synthesize("سلام، من دستیار مرداس هستم.")
+    print(f"طول فایل صوتی: {len(audio)} بایت")
+    with open("test_tts.mp3", "wb") as f:
+        f.write(audio)
+    print("فایل test_tts.mp3 ساخته شد. پخشش کن.")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+
+======================================================================
+📄 فایل 63/63: test_asgi.py
+📏 13 خط
+======================================================================
+
+import os
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+import django
+django.setup()
+
+from config.asgi import application
+from apps.voice.routing import websocket_urlpatterns
+
+print("✅ ASGI loaded")
+print("✅ WebSocket routes:", websocket_urlpatterns)
+
+for r in websocket_urlpatterns:
+    print("   -", r.pattern)
+
+
+======================================================================
+جمع کل: 63 فایل — 5242 خط
+======================================================================
