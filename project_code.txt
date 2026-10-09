@@ -2304,7 +2304,7 @@ websocket_urlpatterns = []
 
 ======================================================================
 📄 فایل 30/67: apps\voice\tools.py
-📏 499 خط
+📏 646 خط
 ======================================================================
 
 """
@@ -2808,6 +2808,153 @@ def _normalize_phone(phone):
     return digits
 
 
+
+
+
+
+# ═══════════════════════════════════════════════════════════
+# پردازش هوشمند شماره تلفن
+# ═══════════════════════════════════════════════════════════
+
+# کلمات عددی فارسی (شامل اشکال مختلف)
+PHONE_DIGIT_WORDS = {
+    # صفر
+    "صفر": "0", "صفر ": "0",
+    # یک
+    "یک": "1", "یه": "1", "يک": "1", "يك": "1",
+    # دو
+    "دو": "2", "٢": "2",
+    # سه
+    "سه": "3", "سِه": "3",
+    # چهار
+    "چهار": "4", "چار": "4", "چهار ": "4",
+    # پنج
+    "پنج": "5", "پنج ": "5", "پَنج": "5",
+    # شش
+    "شش": "6", "شیش": "6", "شِش": "6", "شش ": "6",
+    # هفت
+    "هفت": "7", "هَفت": "7", "هفت ": "7",
+    # هشت
+    "هشت": "8", "هَشت": "8", "هشت ": "8",
+    # نه
+    "نه": "9", "نُه": "9", "نو": "9", "نٌه": "9",
+}
+
+
+def extract_phone_from_text(text: str) -> str:
+    """
+    استخراج شماره تلفن از متن فارسی
+    - اعداد فارسی/عربی → انگلیسی
+    - کلمات عددی → رقم
+    - گروه‌بندی با فاصله/خط تیره → حذف
+    - نرمال‌سازی نهایی: 11 رقم با 09
+    
+    خروجی: شماره 11 رقمی یا "" اگر پیدا نشد
+    """
+    if not text:
+        return ""
+
+    # ۱. تبدیل اعداد فارسی/عربی به انگلیسی
+    text = text.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789"))
+    text = text.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+
+    # ۲. تبدیل کلمات عددی به رقم
+    words = text.split()
+    converted_words = []
+    for w in words:
+        # حذف علائم نگارشی
+        clean = w.strip("،.,؛:!?؟")
+        if clean in PHONE_DIGIT_WORDS:
+            converted_words.append(PHONE_DIGIT_WORDS[clean])
+        else:
+            # اگه کلمه ترکیبی بود (مثلاً "صفرنه") — نادر ولی ممکنه
+            converted_words.append(w)
+
+    text = " ".join(converted_words)
+
+    # ۳. جدا کردن دنباله‌های عددی
+    # مثلاً: "یه مشتری به اسم علی با شماره 0 9 1 2 3 4 5 6 7 8 9"
+    # هدف: پیدا کردن طولانی‌ترین دنباله‌ی رقم‌ها
+    
+    import re
+    
+    # همه‌ی رقم‌ها رو با فاصله جدا کن
+    # بعد دنباله‌های طولانی رو پیدا کن
+    
+    # روش ۱: دنباله‌های رقم با فاصله (حداقل ۸ رقم)
+    # مثال: "0 9 1 2 3 4 5 6 7 8 9" یا "0912345678 9"
+    digits_only = re.sub(r"[^\d]", "", text)
+    
+    # الان digits_only همه‌ی رقم‌های متن رو داره
+    # ولی ممکنه شامل شماره‌های دیگه (مثل مبلغ) هم باشه
+    
+    # روش دقیق‌تر: به دنبال الگوی شماره موبایل بگرد
+    # الگوهای ممکن:
+    # - 09123456789 (11 رقم پشت سر هم)
+    # - 9123456789 (10 رقم، بدون 0)
+    # - 0912345678 + 9 (11 رقم با فاصله)
+    
+    # پیدا کردن همه‌ی دنباله‌های رقم با طول ≥ 10
+    # اول فاصله‌های اضافی رو حذف کن
+    compact = re.sub(r"\s+", "", text)
+    
+    # الان الگوهایی مثل "09123456789" یا "0912345678" رو پیدا کن
+    # دنباله‌های 10-11 رقمی که با 9 یا 0 شروع می‌شن
+    patterns = [
+        r"0?9\d{9}",       # 09123456789 یا 9123456789
+        r"\d{11}",         # هر 11 رقمی
+        r"\d{10}",         # هر 10 رقمی
+    ]
+    
+    for pat in patterns:
+        matches = re.findall(pat, compact)
+        for m in matches:
+            phone = _normalize_phone(m)
+            if phone and len(phone) == 11:
+                return phone
+
+    # اگه هیچ الگویی پیدا نشد، سعی کن از digits_only استفاده کنی
+    # ولی فقط اگه 11 رقم یا کمتر باشه
+    if 10 <= len(digits_only) <= 11:
+        phone = _normalize_phone(digits_only)
+        if phone:
+            return phone
+
+    return ""
+
+
+def _normalize_phone(phone):
+    """تبدیل شماره به فرمت استاندارد 09xxxxxxxxx"""
+    if not phone:
+        return ""
+    # فقط رقم‌ها
+    digits = "".join(c for c in str(phone) if c.isdigit())
+    # تبدیل اعداد فارسی
+    digits = digits.translate(str.maketrans(PERSIAN_DIGITS, ENGLISH_DIGITS))
+    
+    # حالت ۱: 11 رقم با 09
+    if len(digits) == 11 and digits.startswith("09"):
+        return digits
+    
+    # حالت ۲: 11 رقم با 9 (بدون 0)
+    if len(digits) == 11 and digits.startswith("9"):
+        return "0" + digits
+    
+    # حالت ۳: 10 رقم با 9 → 0 اضافه کن
+    if len(digits) == 10 and digits.startswith("9"):
+        return "0" + digits
+    
+    # حالت ۴: 10 رقم با 0 → یه رقم کم داره
+    if len(digits) == 10 and digits.startswith("0"):
+        return digits  # ناقص ولی برمی‌گردونیم
+    
+    # حالت ۵: 11 رقم با هر چیزی → اگه با 9 شروع می‌شه قبوله
+    if len(digits) == 11:
+        return digits
+    
+    return ""
+
+
 ======================================================================
 📄 فایل 31/67: apps\voice\urls.py
 📏 6 خط
@@ -2823,7 +2970,7 @@ urlpatterns = [
 
 ======================================================================
 📄 فایل 32/67: apps\voice\views.py
-📏 156 خط
+📏 181 خط
 ======================================================================
 
 """
@@ -2839,7 +2986,7 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 
-from apps.voice.tools import normalize_persian_text
+from apps.voice.tools import extract_phone_from_text, normalize_persian_text
 from core.ai import get_stt, get_tts
 from .agent import VoiceAgent
 from .models import VoiceLog
@@ -2891,9 +3038,7 @@ def voice_api(request):
     ext = _detect_extension(audio_file)
     filename = f"voice.{ext}"
 
-    print(f">>> voice_api: orig_name={audio_file.name} ct={audio_file.content_type} "
-          f"ext={ext} size={len(audio_bytes)}")
-
+    _safe_print(f">>> voice_api: orig_name={audio_file.name} ct={audio_file.content_type} ext={ext} size={len(audio_bytes)}")
     # ═══ STT ═══
     try:
         from asgiref.sync import async_to_sync
@@ -2907,7 +3052,17 @@ def voice_api(request):
         # ⭐ نرمال‌سازی متن
         transcript = normalize_persian_text(transcript)
 
-        print(f">>> voice_api: normalized = {transcript}")
+        # ⭐ استخراج شماره تلفن و اضافه کردن به متن با فرمت استاندارد
+        phone = extract_phone_from_text(transcript)
+        if phone:
+            # به GPT بگو این شماره است
+            transcript = f"{transcript} [شماره تلفن استخراج‌شده: {phone}]"
+            logger.info(f">>> extracted phone: {phone}")
+
+        logger.info(f">>> voice_api: normalized = {transcript!r}")
+
+
+        logger.info(f">>> voice_api: normalized = {transcript!r}")
 
 
 
@@ -2982,6 +3137,23 @@ def _save_log(business, user, transcript="", reply="", actions=None,
         )
     except Exception:
         logger.exception("VoiceLog save failed")
+
+
+
+
+# بالا اضافه کن
+import sys
+
+
+def _safe_print(msg):
+    """چاپ امن برای cPanel (که ascii رو تحمیل می‌کنه)"""
+    try:
+        print(msg)
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        try:
+            print(msg.encode("utf-8", errors="replace").decode("ascii", errors="replace"))
+        except Exception:
+            pass
 
 
 ======================================================================
@@ -3192,7 +3364,7 @@ application = get_asgi_application()
 
 ======================================================================
 📄 فایل 36/67: config\settings.py
-📏 149 خط
+📏 158 خط
 ======================================================================
 
 """
@@ -3208,9 +3380,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-insecure-key")
 DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "assistant.mykaman.ir"]
+
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "assistant.mykaman.ir",
+    "www.assistant.mykaman.ir",   # ⭐ اضافه کن
+]
+
+
 CSRF_TRUSTED_ORIGINS = [
-    f"https://{os.getenv('SITE_DOMAIN', 'merdas.mykaman.ir')}",
+    "https://assistant.mykaman.ir",
+    "https://www.assistant.mykaman.ir",   # ⭐ اضافه کن
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
@@ -3330,7 +3511,7 @@ AI_CONFIG = {
     "TTS_PROVIDER": "openai",
     "LLM_PROVIDER": "openai",
     "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", ""),
-    "STT_MODEL": "whisper-1",
+    "STT_MODEL": "gpt-4o-transcribe",   # دقیق‌تر ولی گرون‌تر
     "LLM_MODEL": "gpt-4o",
     "TTS_MODEL": "tts-1",
     "TTS_VOICE": "nova",
@@ -3514,7 +3695,7 @@ def get_llm() -> BaseLLM:
 
 ======================================================================
 📄 فایل 43/67: core\ai\openai_provider.py
-📏 131 خط
+📏 123 خط
 ======================================================================
 
 """
@@ -3523,27 +3704,34 @@ def get_llm() -> BaseLLM:
 import io
 import json
 from openai import AsyncOpenAI
+from contextlib import asynccontextmanager
 
 from django.conf import settings
 from .base import BaseSTT, BaseTTS, BaseLLM
 from .exceptions import STTError, TTSError, LLMError
 
 
-def _client() -> AsyncOpenAI:
-    return AsyncOpenAI(api_key=settings.AI_CONFIG["OPENAI_API_KEY"])
+@asynccontextmanager
+async def _client():
+    client = AsyncOpenAI(api_key=settings.AI_CONFIG["OPENAI_API_KEY"])
+    try:
+        yield client
+    finally:
+        try:
+            await client.close()
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════
-# STT (Speech-to-Text)
+# STT
 # ═══════════════════════════════════════════════
 class OpenAI_STT(BaseSTT):
 
     async def transcribe(self, audio_bytes: bytes, language: str = "fa") -> str:
-        """پیش‌فرض: webm (برای کروم/اندروید/فایرفاکس)"""
         return await self.transcribe_with_filename(
             audio_bytes, filename="voice.webm", language=language
         )
-
 
     async def transcribe_with_filename(
         self,
@@ -3552,59 +3740,47 @@ class OpenAI_STT(BaseSTT):
         language: str = "fa",
     ) -> str:
         try:
-            client = _client()
-            audio_file = io.BytesIO(audio_bytes)
-            audio_file.name = filename
+            async with _client() as client:
+                audio_file = io.BytesIO(audio_bytes)
+                audio_file.name = filename
 
-            response = await client.audio.transcriptions.create(
-                model=settings.AI_CONFIG["STT_MODEL"],
-                file=audio_file,
-                language=language,
-                prompt=(
-                    "این یک دستور صوتی برای سیستم مدیریت کسب‌وکار است. "
-                    "شماره‌های تلفن به فارسی گفته می‌شن: صفر، یک، دو، سه، چهار، پنج، شش، هفت، هشت، نُه. "
-                    "مثال: «صفر نه یک دو سه چهار پنج شش هفت هشت نه» = ۰۹۱۲۳۴۵۶۷۸۹. "
-                    "اعداد را حتماً به رقم بنویس، نه به حروف. "
-                    "مثال‌های درست: "
-                    "«شماره تماس صفر نه یک دو یک سه چهار پنج شش هفت هشت» → ۰۹۱۲۳۴۵۶۷۸ "
-                    "«بیست میلیون تومان» → 20000000 "
-                    "«پنجاه هزار» → 50000 "
-                    "کلمات رایج: مشتری، پروژه، فرصت فروش، پیگیری، مالی، شماره تماس، "
-                    "تلفن، موبایل، شرکت، ثبت، اضافه، گزارش."
-                ),
-                response_format="text",
-                temperature=0,
-            )
-            text = response if isinstance(response, str) else response.text
-            return (text or "").strip()
+                response = await client.audio.transcriptions.create(
+                    model=settings.AI_CONFIG["STT_MODEL"],
+                    file=audio_file,
+                    language=language,
+                    # ⭐ prompt کوتاه — Whisper رو گیج نمی‌کنه
+                    prompt="دستور صوتی فارسی برای مدیریت کسب‌وکار.",
+                    response_format="text",
+                    temperature=0,
+                )
+                text = response if isinstance(response, str) else response.text
+                return (text or "").strip()
         except Exception as exc:
             raise STTError(f"خطا در تبدیل صدا به متن: {exc}") from exc
 
 
-
 # ═══════════════════════════════════════════════
-# TTS (Text-to-Speech)
+# TTS
 # ═══════════════════════════════════════════════
 class OpenAI_TTS(BaseTTS):
 
     async def synthesize(self, text: str) -> bytes:
         try:
-            client = _client()
-            response = await client.audio.speech.create(
-                model=settings.AI_CONFIG["TTS_MODEL"],   # tts-1
-                voice=settings.AI_CONFIG["TTS_VOICE"],   # alloy
-                input=text,
-                response_format="mp3",
-            )
-            # پاسخ generator sync هست، نه async
-            audio = b"".join(response.iter_bytes())
-            return audio
+            async with _client() as client:
+                response = await client.audio.speech.create(
+                    model=settings.AI_CONFIG["TTS_MODEL"],
+                    voice=settings.AI_CONFIG["TTS_VOICE"],
+                    input=text,
+                    response_format="mp3",
+                )
+                audio = b"".join(response.iter_bytes())
+                return audio
         except Exception as exc:
             raise TTSError(f"خطا در تبدیل متن به صدا: {exc}") from exc
 
 
 # ═══════════════════════════════════════════════
-# LLM (Chat + Function Calling)
+# LLM
 # ═══════════════════════════════════════════════
 class OpenAI_LLM(BaseLLM):
 
@@ -3615,44 +3791,41 @@ class OpenAI_LLM(BaseLLM):
         temperature: float = 0.7,
     ) -> dict:
         try:
-            client = _client()
-            kwargs = {
-                "model": settings.AI_CONFIG["LLM_MODEL"],   # gpt-4o
-                "messages": messages,
-                "temperature": temperature,
-            }
-            if tools:
-                kwargs["tools"] = tools
-                kwargs["tool_choice"] = "auto"
+            async with _client() as client:
+                kwargs = {
+                    "model": settings.AI_CONFIG["LLM_MODEL"],
+                    "messages": messages,
+                    "temperature": temperature,
+                }
+                if tools:
+                    kwargs["tools"] = tools
+                    kwargs["tool_choice"] = "auto"
 
-            response = await client.chat.completions.create(**kwargs)
-            msg = response.choices[0].message
+                response = await client.chat.completions.create(**kwargs)
+                msg = response.choices[0].message
 
-            result = {
-                "content": msg.content or "",
-                "tool_calls": [],
-            }
+                result = {"content": msg.content or "", "tool_calls": []}
 
-            if msg.tool_calls:
-                for tc in msg.tool_calls:
-                    try:
-                        args = json.loads(tc.function.arguments or "{}")
-                    except json.JSONDecodeError:
-                        args = {}
-                    result["tool_calls"].append({
-                        "id": tc.id,
-                        "name": tc.function.name,
-                        "arguments": args,
-                    })
+                if msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        try:
+                            args = json.loads(tc.function.arguments or "{}")
+                        except json.JSONDecodeError:
+                            args = {}
+                        result["tool_calls"].append({
+                            "id": tc.id,
+                            "name": tc.function.name,
+                            "arguments": args,
+                        })
 
-            return result
+                return result
         except Exception as exc:
             raise LLMError(f"خطا در ارتباط با مدل زبانی: {exc}") from exc
 
 
 ======================================================================
 📄 فایل 44/67: core\ai\prompts.py
-📏 55 خط
+📏 81 خط
 ======================================================================
 
 """
@@ -3703,6 +3876,32 @@ SYSTEM_PROMPT = """تو «دستیار هوشمند اتاق فرمان کسب�
 
 ## لحن:
 دوستانه، حرفه‌ای، مثل یه همکار خوب.
+
+
+
+## شماره تلفن — بسیار مهم:
+وقتی توی متن کاربر عبارت «[شماره تلفن استخراج‌شده: XXXXXXXXXXX]» دیدی،
+یعنی سیستم خودش شماره رو تشخیص داده. دقیقاً همون رو استفاده کن.
+
+مثال:
+کاربر گفته: «یه مشتری جدید به اسم علی رضایی با شماره صفر نه یک دو سه چهار پنج شش هفت هشت نه»
+متن نرمال‌شده: «یه مشتری جدید به اسم علی رضایی با شماره 0 9 1 2 3 4 5 6 7 8 9 [شماره تلفن استخراج‌شده: 09123456789]»
+تو باید: create_customer(title="علی رضایی", phone="09123456789")
+
+
+
+## شماره تلفن — بسیار مهم:
+وقتی توی متن کاربر الگوی «[phone:09123456789]» دیدی،
+یعنی سیستم خودش شماره رو استخراج کرده. دقیقاً همون رو استفاده کن.
+
+مثال:
+ورودی: «یه مشتری جدید به اسم علی رضایی با شماره ... [phone:09123456789]»
+تو: create_customer(title="علی رضایی", phone="09123456789")
+
+⚠️ شماره‌ها همیشه ۱۱ رقم و با ۰۹ شروع می‌شن.
+⚠️ اگه [phone:...] توی متن نبود، ولی کاربر شماره گفت، خودت تلاش کن.
+⚠️ اگه شماره ناقص بود، بپرس: «شماره کامل چیه؟ معمولاً ۱۱ رقمه.»
+
 """
 def build_messages(user_text: str, history: list[dict] | None = None) -> list[dict]:
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -6166,5 +6365,5 @@ for r in websocket_urlpatterns:
 
 
 ======================================================================
-جمع کل: 67 فایل — 5692 خط
+جمع کل: 67 فایل — 5891 خط
 ======================================================================

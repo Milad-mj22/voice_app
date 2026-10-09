@@ -1,8 +1,8 @@
 /**
- * Voice Assistant — نسخه HTTP با یک کلیک
+ * Voice Assistant — نسخه HTTP با ویس + متن
  */
 (function() {
-  console.log("[voice.js] loaded (HTTP mode, click-to-record)");
+  console.log("[voice.js] loaded (voice + text mode)");
 
   const modal = document.getElementById("voiceModal");
   const btn = document.getElementById("voiceRecordBtn");
@@ -14,6 +14,10 @@
   const playBtn = document.getElementById("voicePlayBtn");
   const muteBtn = document.getElementById("voiceMuteBtn");
   const progressBar = document.getElementById("voicePlayerProgress");
+
+  // باکس متن
+  const textInput = document.getElementById("voiceTextInput");
+  const textSendBtn = document.getElementById("voiceTextSendBtn");
 
   let recorder = null;
   let isBusy = false;
@@ -53,11 +57,16 @@
     return r.message || action.name;
   }
 
+  function setBusy(busy) {
+    isBusy = busy;
+    if (textSendBtn) textSendBtn.disabled = busy;
+    if (btn) btn.disabled = busy;
+  }
+
   // ═══════════ پخش صدا ═══════════
   function loadAudio(b64) {
     if (!b64) return;
 
-    // آزادسازی قبلی
     if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
 
     const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
@@ -72,11 +81,9 @@
     currentAudio = new Audio(currentAudioUrl);
     currentAudio.muted = isMuted;
 
-    // نمایش پلیر
     if (player) player.style.display = "flex";
     updatePlayIcon();
 
-    // آپدیت پروگرس
     currentAudio.ontimeupdate = () => {
       if (!currentAudio.duration) return;
       const pct = (currentAudio.currentTime / currentAudio.duration) * 100;
@@ -88,10 +95,8 @@
       if (progressBar) progressBar.style.width = "0%";
     };
 
-    // پخش خودکار
     currentAudio.play().catch(e => {
       console.warn("[voice.js] autoplay blocked:", e);
-      setStatus("برای پخش صدا دکمه ▶ رو بزن");
     });
   }
 
@@ -106,11 +111,8 @@
 
   function togglePlay() {
     if (!currentAudio) return;
-    if (currentAudio.paused) {
-      currentAudio.play();
-    } else {
-      currentAudio.pause();
-    }
+    if (currentAudio.paused) currentAudio.play();
+    else currentAudio.pause();
     setTimeout(updatePlayIcon, 50);
   }
 
@@ -125,17 +127,15 @@
     }
   }
 
-  // ═══════════ ضبط صدا (یک کلیک شروع/توقف) ═══════════
+  // ═══════════ ضبط صدا ═══════════
   async function toggleRecording() {
     if (isBusy) return;
 
-    // اگه در حال ضبطه → توقف
     if (isRecording) {
       await stopRecording();
       return;
     }
 
-    // اگه تازه می‌خواد شروع کنه
     if (typeof VoiceRecorder === "undefined") {
       setStatus("ماژول ضبط بارگذاری نشده.", "error");
       return;
@@ -168,13 +168,13 @@
       return;
     }
 
-    isBusy = true;
-    await sendToServer(result.blob, result.extension);
-    isBusy = false;
+    setBusy(true);
+    await sendAudioToServer(result.blob, result.extension);
+    setBusy(false);
   }
 
-  // ═══════════ ارسال به سرور ═══════════
-  async function sendToServer(blob, extension) {
+  // ═══════════ ارسال صدا ═══════════
+  async function sendAudioToServer(blob, extension) {
     const fd = new FormData();
     fd.append("audio", blob, `voice.${extension || "webm"}`);
 
@@ -188,33 +188,7 @@
         headers: csrf ? { "X-CSRFToken": csrf } : {},
       });
 
-      if (!res.ok) {
-        const txt = await res.text();
-        console.error("[voice.js] server error:", res.status, txt);
-        setStatus("خطا در سرور: " + res.status, "error");
-        addLine("error", "❌ خطای سرور " + res.status);
-        return;
-      }
-
-      const data = await res.json();
-
-      if (!data.ok) {
-        setStatus(data.error || "خطا در پردازش", "error");
-        addLine("error", "❌ " + (data.error || "خطا"));
-        return;
-      }
-
-      if (data.transcript) addLine("user", "🗣 " + data.transcript);
-
-      if (data.actions && data.actions.length) {
-        data.actions.forEach(a => addLine("action", "⚙️ " + formatAction(a)));
-      }
-
-      if (data.reply) addLine("reply", "💬 " + data.reply);
-
-      if (data.audio) loadAudio(data.audio);
-
-      setStatus("✅ می‌تونی دوباره بزنی و حرف بزنی", "ok");
+      await handleResponse(res);
 
     } catch (e) {
       console.error("[voice.js] fetch error", e);
@@ -223,20 +197,108 @@
     }
   }
 
+  // ═══════════ ارسال متن ═══════════
+  async function sendTextToServer() {
+    if (isBusy) return;
+
+    const text = (textInput?.value || "").trim();
+    if (!text) {
+      setStatus("متن خالیه. یه چیزی بنویس.", "error");
+      textInput?.focus();
+      return;
+    }
+
+    // نمایش پیام کاربر
+    addLine("user", "🗣 " + text);
+    if (textInput) textInput.value = "";
+
+    setBusy(true);
+    setStatus("⏳ در حال پردازش…");
+
+    const csrf = getCSRFToken();
+
+    try {
+      const res = await fetch("/api/voice/text/", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrf,
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      await handleResponse(res);
+
+    } catch (e) {
+      console.error("[voice.js] text fetch error", e);
+      setStatus("خطا در ارتباط با سرور", "error");
+      addLine("error", "❌ " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ═══════════ پردازش پاسخ سرور ═══════════
+  async function handleResponse(res) {
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error("[voice.js] server error:", res.status, txt);
+      setStatus("خطا در سرور: " + res.status, "error");
+      addLine("error", "❌ خطای سرور " + res.status);
+      return;
+    }
+
+    const data = await res.json();
+
+    if (!data.ok) {
+      setStatus(data.error || "خطا در پردازش", "error");
+      addLine("error", "❌ " + (data.error || "خطا"));
+      return;
+    }
+
+    // اگه از صدا اومده بود، متن transcript رو نشون بده
+    if (data.transcript && data.source === "voice") {
+      addLine("user", "🗣 " + data.transcript);
+    }
+
+    if (data.actions && data.actions.length) {
+      data.actions.forEach(a => addLine("action", "⚙️ " + formatAction(a)));
+    }
+
+    if (data.reply) addLine("reply", "💬 " + data.reply);
+
+    if (data.audio) loadAudio(data.audio);
+
+    setStatus("✅ می‌تونی دوباره بپرسی", "ok");
+  }
+
   // ═══════════ رویدادها ═══════════
   if (btn) {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       toggleRecording();
     });
-    console.log("[voice.js] record button attached (click mode)");
   }
 
-  if (playBtn) {
-    playBtn.addEventListener("click", togglePlay);
+  if (playBtn) playBtn.addEventListener("click", togglePlay);
+  if (muteBtn) muteBtn.addEventListener("click", toggleMute);
+
+  if (textSendBtn) {
+    textSendBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      sendTextToServer();
+    });
   }
-  if (muteBtn) {
-    muteBtn.addEventListener("click", toggleMute);
+
+  if (textInput) {
+    // Enter = ارسال (Shift+Enter = خط جدید)
+    textInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendTextToServer();
+      }
+    });
   }
 
   // FAB در Bottom Nav
@@ -245,7 +307,6 @@
     fab.addEventListener("click", () => window.openVoice());
   }
 
-  // کلیک روی overlay → بستن
   if (modal) {
     modal.addEventListener("click", (e) => {
       if (e.target === modal) window.closeVoice();
@@ -255,7 +316,8 @@
   // ═══════════ API عمومی ═══════════
   window.openVoice = function() {
     if (modal) modal.classList.add("show");
-    setStatus("دکمه رو بزن و حرف بزن");
+    setStatus("دکمه رو بزن و حرف بزن، یا متن بنویس");
+    setTimeout(() => textInput?.focus(), 300);
   };
 
   window.closeVoice = function() {

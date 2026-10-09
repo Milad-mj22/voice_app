@@ -10,16 +10,35 @@
     </div>
 
     <div class="voice-status" id="voiceStatus">
-      برای شروع، دکمه رو بزن
+      دکمه رو بزن و حرف بزن، یا متن بنویس
     </div>
 
+    <!-- ═══ دکمه میکروفن ═══ -->
     <div class="voice-record-wrap">
       <button id="voiceRecordBtn" class="voice-record-btn">
         <i class="ri-mic-line"></i>
       </button>
     </div>
 
-    <!-- پلیر صوتی -->
+    <!-- ═══ OR Divider ═══ -->
+    <div class="voice-divider">
+      <span>یا</span>
+    </div>
+
+    <!-- ═══ باکس متن ═══ -->
+    <form id="voiceTextForm" class="voice-text-form" onsubmit="return false;">
+      <textarea
+        id="voiceTextInput"
+        class="voice-text-input"
+        placeholder="مثلاً: یه مشتری جدید به اسم علی رضایی با شماره ۰۹۱۲۳۴۵۶۷۸۹"
+        rows="2"
+      ></textarea>
+      <button type="button" id="voiceTextSendBtn" class="voice-text-send">
+        <i class="ri-send-plane-fill"></i>
+      </button>
+    </form>
+
+    <!-- ═══ پلیر صوتی ═══ -->
     <div id="voicePlayer" class="voice-player" style="display:none">
       <button id="voicePlayBtn" class="voice-play-btn">
         <i class="ri-play-fill"></i>

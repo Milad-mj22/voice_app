@@ -1,7 +1,8 @@
 """
-API دستیار صوتی — نسخه HTTP (بدون WebSocket)
+API دستیار صوتی — نسخه HTTP (ویس + متن)
 """
 import base64
+import json
 import logging
 import time
 
@@ -21,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 
 def _detect_extension(audio_file):
-    """تشخیص پسوند واقعی فایل صوتی"""
     content_type = (audio_file.content_type or "").lower()
     name = (audio_file.name or "").lower()
 
@@ -37,9 +37,12 @@ def _detect_extension(audio_file):
         return "wav"
     if "flac" in content_type or name.endswith(".flac"):
         return "flac"
-    return "webm"  # پیش‌فرض
+    return "webm"
 
 
+# ═══════════════════════════════════════════
+# ویس → متن → پاسخ
+# ═══════════════════════════════════════════
 @login_required
 @require_POST
 @csrf_protect
@@ -58,38 +61,25 @@ def voice_api(request):
         return JsonResponse({"ok": False, "error": "حجم صدا زیاد است."}, status=400)
 
     audio_bytes = audio_file.read()
-
-    # ═══ تشخیص پسوند ═══
     ext = _detect_extension(audio_file)
     filename = f"voice.{ext}"
 
-    _safe_print(f">>> voice_api: orig_name={audio_file.name} ct={audio_file.content_type} ext={ext} size={len(audio_bytes)}")
+    logger.info(f">>> voice_api: ext={ext} size={len(audio_bytes)}")
+
     # ═══ STT ═══
     try:
         from asgiref.sync import async_to_sync
         stt = get_stt()
-
-
         transcript = async_to_sync(stt.transcribe_with_filename)(
             audio_bytes, filename=filename, language="fa"
         )
-
-        # ⭐ نرمال‌سازی متن
         transcript = normalize_persian_text(transcript)
 
-        # ⭐ استخراج شماره تلفن و اضافه کردن به متن با فرمت استاندارد
         phone = extract_phone_from_text(transcript)
         if phone:
-            # به GPT بگو این شماره است
-            transcript = f"{transcript} [شماره تلفن استخراج‌شده: {phone}]"
-            logger.info(f">>> extracted phone: {phone}")
+            transcript = f"{transcript} [phone:{phone}]"
 
-        logger.info(f">>> voice_api: normalized = {transcript!r}")
-
-
-        logger.info(f">>> voice_api: normalized = {transcript!r}")
-
-
+        logger.info(f">>> STT: {transcript!r}")
 
     except Exception as exc:
         logger.exception("STT error")
@@ -105,14 +95,67 @@ def voice_api(request):
             status=200,
         )
 
+    # ═══ Agent + TTS ═══
+    return _run_agent_and_tts(
+        business, request.user, transcript,
+        source="voice", started=started,
+    )
+
+
+# ═══════════════════════════════════════════
+# متن → پاسخ
+# ═══════════════════════════════════════════
+@login_required
+@require_POST
+@csrf_protect
+def voice_text_api(request):
+    started = time.time()
+
+    business = getattr(request, "business", None) or getattr(request.user, "business", None)
+    if not business:
+        return JsonResponse({"ok": False, "error": "کسب‌وکار پیدا نشد."}, status=400)
+
+    try:
+        body = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "JSON نامعتبر."}, status=400)
+
+    text = (body.get("text") or "").strip()
+    if not text:
+        return JsonResponse({"ok": False, "error": "متن خالیه."}, status=400)
+
+    if len(text) > 1000:
+        return JsonResponse({"ok": False, "error": "متن خیلی طولانیه."}, status=400)
+
+    # نرمال‌سازی + استخراج شماره
+    text = normalize_persian_text(text)
+    phone = extract_phone_from_text(text)
+    if phone:
+        text = f"{text} [phone:{phone}]"
+
+    logger.info(f">>> text_api: {text!r}")
+
+    return _run_agent_and_tts(
+        business, request.user, text,
+        source="text", started=started,
+    )
+
+
+# ═══════════════════════════════════════════
+# منطق مشترک: Agent + TTS + Log
+# ═══════════════════════════════════════════
+def _run_agent_and_tts(business, user, text, source="voice", started=None):
+    if started is None:
+        started = time.time()
+
     # ═══ Agent ═══
     try:
         from asgiref.sync import async_to_sync
-        agent = VoiceAgent(business=business, user=request.user)
-        result = async_to_sync(agent.handle)(transcript)
+        agent = VoiceAgent(business=business, user=user)
+        result = async_to_sync(agent.handle)(text)
     except Exception as exc:
         logger.exception("Agent error")
-        _save_log(business, request.user, transcript=transcript, error=f"Agent: {exc}")
+        _save_log(business, user, transcript=text, error=f"Agent: {exc}")
         return JsonResponse({"ok": False, "error": "خطا در پردازش درخواست."}, status=500)
 
     reply = result.get("reply", "")
@@ -131,8 +174,8 @@ def voice_api(request):
     # ═══ ذخیره لاگ ═══
     duration_ms = int((time.time() - started) * 1000)
     _save_log(
-        business, request.user,
-        transcript=transcript,
+        business, user,
+        transcript=text,
         reply=reply,
         actions=[a["name"] for a in actions],
         duration_ms=duration_ms,
@@ -140,7 +183,8 @@ def voice_api(request):
 
     return JsonResponse({
         "ok": True,
-        "transcript": transcript,
+        "source": source,
+        "transcript": text if source == "voice" else "",
         "reply": reply,
         "actions": [
             {"name": a["name"], "result": a.get("result", {})}
@@ -162,20 +206,3 @@ def _save_log(business, user, transcript="", reply="", actions=None,
         )
     except Exception:
         logger.exception("VoiceLog save failed")
-
-
-
-
-# بالا اضافه کن
-import sys
-
-
-def _safe_print(msg):
-    """چاپ امن برای cPanel (که ascii رو تحمیل می‌کنه)"""
-    try:
-        print(msg)
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        try:
-            print(msg.encode("utf-8", errors="replace").decode("ascii", errors="replace"))
-        except Exception:
-            pass
