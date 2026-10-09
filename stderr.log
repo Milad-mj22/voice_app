@@ -3820,3 +3820,12 @@ Not Found: /api/voice/
 Not Found: /api/voice/
 Not Found: /api/voice/
 Not Found: /api/voice/
+  File "/home/mykamani/voice_app/passenger_wsgi.py", line 1
+    <<<<<<< HEAD
+    ^^
+SyntaxError: invalid syntax
+  File "/home/mykamani/voice_app/passenger_wsgi.py", line 1
+    <<<<<<< HEAD
+    ^^
+SyntaxError: invalid syntax
+[UID:1539][3615529] Child process with pid: 3615892 was killed by signal: 15, core dumped: no
