@@ -3807,3 +3807,16 @@ Not Found: /ws/voice/
 Not Found: /ws/voice/
 Not Found: /ws/voice/
 Not Found: /ws/voice/
+Not Found: /ws/voice/
+Not Found: /ws/voice/
+/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/db/models/fields/__init__.py:1600: RuntimeWarning: DateTimeField Customer.created_at received a naive datetime (2026-10-02 00:00:00) while time zone support is active.
+  warnings.warn(
+Not Found: /favicon.ico
+/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/db/models/fields/__init__.py:1600: RuntimeWarning: DateTimeField Customer.created_at received a naive datetime (2026-10-02 00:00:00) while time zone support is active.
+  warnings.warn(
+Not Found: /api/voice/
+Not Found: /api/voice/
+Not Found: /api/voice/
+Not Found: /api/voice/
+Not Found: /api/voice/
+Not Found: /api/voice/

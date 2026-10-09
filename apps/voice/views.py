@@ -19,59 +19,40 @@ from .models import VoiceLog
 
 logger = logging.getLogger(__name__)
 
-
 @login_required
 @require_POST
 @csrf_protect
 def voice_api(request):
-    """
-    ورودی: multipart/form-data با فیلد 'audio' (فایل صوتی)
-    خروجی: JSON
-      {
-        "ok": true,
-        "transcript": "...",
-        "reply": "...",
-        "actions": [{"name": "...", "result": {...}}],
-        "audio": "base64-encoded-mp3"
-      }
-    """
     started = time.time()
 
     business = getattr(request, "business", None) or getattr(request.user, "business", None)
     if not business:
-        return JsonResponse(
-            {"ok": False, "error": "کسب‌وکار پیدا نشد."},
-            status=400,
-        )
+        return JsonResponse({"ok": False, "error": "کسب‌وکار پیدا نشد."}, status=400)
 
     audio_file = request.FILES.get("audio")
     if not audio_file:
-        return JsonResponse(
-            {"ok": False, "error": "فایل صوتی دریافت نشد."},
-            status=400,
-        )
+        return JsonResponse({"ok": False, "error": "فایل صوتی دریافت نشد."}, status=400)
 
     if audio_file.size > settings.VOICE_MAX_BYTES:
-        return JsonResponse(
-            {"ok": False, "error": "حجم صدا زیاد است."},
-            status=400,
-        )
+        return JsonResponse({"ok": False, "error": "حجم صدا زیاد است."}, status=400)
 
     audio_bytes = audio_file.read()
+    filename = audio_file.name or "voice.webm"
 
-    # ═══════════ ۱. تبدیل صدا به متن (STT) ═══════════
+    print(f">>> voice_api: name={filename} size={len(audio_bytes)} bytes")
+
+    # ═══════════ STT ═══════════
     try:
-        stt = get_stt()
-        # async → sync با asgiref
         from asgiref.sync import async_to_sync
-        transcript = async_to_sync(stt.transcribe)(audio_bytes, language="fa")
+        stt = get_stt()
+        # پسوند فایل رو به whisper بده تا فرمت رو درست تشخیص بده
+        transcript = async_to_sync(stt.transcribe_with_filename)(
+            audio_bytes, filename=filename, language="fa"
+        )
     except Exception as exc:
         logger.exception("STT error")
         _save_log(business, request.user, error=f"STT: {exc}")
-        return JsonResponse(
-            {"ok": False, "error": "نتونستم صدا رو تشخیص بدم."},
-            status=500,
-        )
+        return JsonResponse({"ok": False, "error": "نتونستم صدا رو تشخیص بدم."}, status=500)
 
     if not transcript:
         return JsonResponse(
