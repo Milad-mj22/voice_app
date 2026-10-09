@@ -136,7 +136,7 @@ AI_CONFIG = {
     "STT_MODEL": "whisper-1",
     "LLM_MODEL": "gpt-4o",
     "TTS_MODEL": "tts-1",
-    "TTS_VOICE": "alloy",
+    "TTS_VOICE": "nova",
     "LANGUAGE": "fa",
 }
 

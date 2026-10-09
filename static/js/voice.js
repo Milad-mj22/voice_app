@@ -1,17 +1,27 @@
 /**
- * Voice Assistant — نسخه HTTP (بدون WebSocket)
- * مناسب cPanel و هر هاست اشتراکی
+ * Voice Assistant — نسخه HTTP با یک کلیک
  */
 (function() {
-  console.log("[voice.js] loaded (HTTP mode)");
+  console.log("[voice.js] loaded (HTTP mode, click-to-record)");
 
   const modal = document.getElementById("voiceModal");
   const btn = document.getElementById("voiceRecordBtn");
   const statusEl = document.getElementById("voiceStatus");
   const logEl = document.getElementById("voiceLog");
 
+  // پلیر
+  const player = document.getElementById("voicePlayer");
+  const playBtn = document.getElementById("voicePlayBtn");
+  const muteBtn = document.getElementById("voiceMuteBtn");
+  const progressBar = document.getElementById("voicePlayerProgress");
+
   let recorder = null;
   let isBusy = false;
+  let isRecording = false;
+
+  let currentAudio = null;
+  let isMuted = false;
+  let currentAudioUrl = null;
 
   // ═══════════ ابزارها ═══════════
   function setStatus(text, type = "") {
@@ -31,18 +41,10 @@
     logEl.scrollTop = logEl.scrollHeight;
   }
 
-  function playAudio(b64) {
-    if (!b64) return;
-    try {
-      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      const blob = new Blob([bytes], { type: "audio/mpeg" });
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.onended = () => URL.revokeObjectURL(url);
-      audio.play().catch(e => console.warn("پخش صدا:", e));
-    } catch (e) {
-      console.error("[voice.js] play error", e);
-    }
+  function getCSRFToken() {
+    if (window.CSRF_TOKEN) return window.CSRF_TOKEN;
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : "";
   }
 
   function formatAction(action) {
@@ -51,28 +53,101 @@
     return r.message || action.name;
   }
 
-  function getCSRFToken() {
-    if (window.CSRF_TOKEN) return window.CSRF_TOKEN;
-    const m = document.cookie.match(/csrftoken=([^;]+)/);
-    return m ? m[1] : "";
+  // ═══════════ پخش صدا ═══════════
+  function loadAudio(b64) {
+    if (!b64) return;
+
+    // آزادسازی قبلی
+    if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
+
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: "audio/mpeg" });
+    currentAudioUrl = URL.createObjectURL(blob);
+
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+
+    currentAudio = new Audio(currentAudioUrl);
+    currentAudio.muted = isMuted;
+
+    // نمایش پلیر
+    if (player) player.style.display = "flex";
+    updatePlayIcon();
+
+    // آپدیت پروگرس
+    currentAudio.ontimeupdate = () => {
+      if (!currentAudio.duration) return;
+      const pct = (currentAudio.currentTime / currentAudio.duration) * 100;
+      if (progressBar) progressBar.style.width = pct + "%";
+    };
+
+    currentAudio.onended = () => {
+      updatePlayIcon();
+      if (progressBar) progressBar.style.width = "0%";
+    };
+
+    // پخش خودکار
+    currentAudio.play().catch(e => {
+      console.warn("[voice.js] autoplay blocked:", e);
+      setStatus("برای پخش صدا دکمه ▶ رو بزن");
+    });
   }
 
-  // ═══════════ ضبط صدا ═══════════
-  async function startRecording() {
+  function updatePlayIcon() {
+    if (!playBtn) return;
+    if (currentAudio && !currentAudio.paused) {
+      playBtn.innerHTML = '<i class="ri-pause-fill"></i>';
+    } else {
+      playBtn.innerHTML = '<i class="ri-play-fill"></i>';
+    }
+  }
+
+  function togglePlay() {
+    if (!currentAudio) return;
+    if (currentAudio.paused) {
+      currentAudio.play();
+    } else {
+      currentAudio.pause();
+    }
+    setTimeout(updatePlayIcon, 50);
+  }
+
+  function toggleMute() {
+    isMuted = !isMuted;
+    if (currentAudio) currentAudio.muted = isMuted;
+    if (muteBtn) {
+      muteBtn.classList.toggle("muted", isMuted);
+      muteBtn.innerHTML = isMuted
+        ? '<i class="ri-volume-mute-line"></i>'
+        : '<i class="ri-volume-up-line"></i>';
+    }
+  }
+
+  // ═══════════ ضبط صدا (یک کلیک شروع/توقف) ═══════════
+  async function toggleRecording() {
     if (isBusy) return;
 
+    // اگه در حال ضبطه → توقف
+    if (isRecording) {
+      await stopRecording();
+      return;
+    }
+
+    // اگه تازه می‌خواد شروع کنه
     if (typeof VoiceRecorder === "undefined") {
       setStatus("ماژول ضبط بارگذاری نشده.", "error");
       return;
     }
 
-    if (recorder && recorder.isRecording()) return;
-
     recorder = new VoiceRecorder();
     try {
       await recorder.start();
+      isRecording = true;
       btn?.classList.add("recording");
-      setStatus("🔴 در حال ضبط…", "ok");
+      btn.innerHTML = '<i class="ri-stop-fill"></i>';
+      setStatus("🔴 در حال ضبط… دوباره بزن تا بفرسته");
     } catch (e) {
       console.error("[voice.js] start error", e);
       setStatus(e.message, "error");
@@ -80,11 +155,12 @@
   }
 
   async function stopRecording() {
-    if (!recorder || !recorder.isRecording()) return;
-    if (isBusy) return;
+    if (!recorder || !isRecording) return;
 
+    isRecording = false;
     btn?.classList.remove("recording");
-    setStatus("⏳ در حال ارسال…");
+    btn.innerHTML = '<i class="ri-mic-line"></i>';
+    setStatus("⏳ در حال پردازش…");
 
     const result = await recorder.stop();
     if (!result || !result.blob || result.blob.size === 0) {
@@ -93,15 +169,14 @@
     }
 
     isBusy = true;
-    await sendToServer(result.blob, result.extension, result.mimeType);
+    await sendToServer(result.blob, result.extension);
     isBusy = false;
   }
 
   // ═══════════ ارسال به سرور ═══════════
-  async function sendToServer(blob, extension, mimeType) {
+  async function sendToServer(blob, extension) {
     const fd = new FormData();
-    const filename = `voice.${extension || "webm"}`;
-    fd.append("audio", blob, filename);
+    fd.append("audio", blob, `voice.${extension || "webm"}`);
 
     const csrf = getCSRFToken();
 
@@ -137,13 +212,9 @@
 
       if (data.reply) addLine("reply", "💬 " + data.reply);
 
-      if (data.audio) playAudio(data.audio);
+      if (data.audio) loadAudio(data.audio);
 
-      setStatus("✅ انجام شد", "ok");
-
-      setTimeout(() => {
-        if (!isBusy) setStatus("دکمه رو نگه دار و صحبت کن");
-      }, 2500);
+      setStatus("✅ می‌تونی دوباره بزنی و حرف بزنی", "ok");
 
     } catch (e) {
       console.error("[voice.js] fetch error", e);
@@ -154,26 +225,24 @@
 
   // ═══════════ رویدادها ═══════════
   if (btn) {
-    btn.addEventListener("pointerdown", (e) => {
+    btn.addEventListener("click", (e) => {
       e.preventDefault();
-      startRecording();
+      toggleRecording();
     });
-    btn.addEventListener("pointerup", (e) => {
-      e.preventDefault();
-      stopRecording();
-    });
-    btn.addEventListener("pointerleave", () => {
-      if (recorder && recorder.isRecording()) stopRecording();
-    });
-    btn.addEventListener("contextmenu", (e) => e.preventDefault());
-    console.log("[voice.js] record button attached");
+    console.log("[voice.js] record button attached (click mode)");
+  }
+
+  if (playBtn) {
+    playBtn.addEventListener("click", togglePlay);
+  }
+  if (muteBtn) {
+    muteBtn.addEventListener("click", toggleMute);
   }
 
   // FAB در Bottom Nav
   const fab = document.querySelector(".bnav-fab");
   if (fab) {
     fab.addEventListener("click", () => window.openVoice());
-    console.log("[voice.js] FAB attached");
   }
 
   // کلیک روی overlay → بستن
@@ -185,15 +254,20 @@
 
   // ═══════════ API عمومی ═══════════
   window.openVoice = function() {
-    console.log("[voice.js] openVoice");
     if (modal) modal.classList.add("show");
-    setStatus("دکمه رو نگه دار و صحبت کن");
+    setStatus("دکمه رو بزن و حرف بزن");
   };
 
   window.closeVoice = function() {
-    console.log("[voice.js] closeVoice");
     if (modal) modal.classList.remove("show");
-    if (recorder && recorder.isRecording()) recorder.stop();
+    if (recorder && isRecording) {
+      recorder.stop();
+      isRecording = false;
+    }
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
   };
 
   console.log("[voice.js] ready");

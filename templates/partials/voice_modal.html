@@ -3,19 +3,35 @@
     <div class="voice-drag"></div>
 
     <div class="voice-head">
-      <h3><i class="ri-mic-line" style="color:var(--brand)"></i> دستیار صوتی مرداس</h3>
+      <h3><i class="ri-mic-line" style="color:var(--brand)"></i> دستیار هوشمند</h3>
       <button class="voice-close" onclick="closeVoice()">
         <i class="ri-close-line"></i>
       </button>
     </div>
 
     <div class="voice-status" id="voiceStatus">
-      دکمه رو نگه دار و صحبت کن
+      برای شروع، دکمه رو بزن
     </div>
 
     <div class="voice-record-wrap">
       <button id="voiceRecordBtn" class="voice-record-btn">
         <i class="ri-mic-line"></i>
+      </button>
+    </div>
+
+    <!-- پلیر صوتی -->
+    <div id="voicePlayer" class="voice-player" style="display:none">
+      <button id="voicePlayBtn" class="voice-play-btn">
+        <i class="ri-play-fill"></i>
+      </button>
+      <div class="voice-player-info">
+        <div class="voice-player-title">پاسخ صوتی</div>
+        <div class="voice-player-bar">
+          <div id="voicePlayerProgress" class="voice-player-progress"></div>
+        </div>
+      </div>
+      <button id="voiceMuteBtn" class="voice-mute-btn">
+        <i class="ri-volume-up-line"></i>
       </button>
     </div>
 
