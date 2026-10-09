@@ -3951,3 +3951,635 @@ Not Found: /favicon.ico
 Not Found: /favicon.ico
 Not Found: /favicon.ico
 Not Found: /favicon.ico
+/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/db/models/fields/__init__.py:1600: RuntimeWarning: DateTimeField Customer.created_at received a naive datetime (2026-10-02 00:00:00) while time zone support is active.
+  warnings.warn(
+/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/db/models/fields/__init__.py:1600: RuntimeWarning: DateTimeField Customer.created_at received a naive datetime (2026-10-02 00:00:00) while time zone support is active.
+  warnings.warn(
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 42, in transcribe_with_filename
+    response = await client.audio.transcriptions.create(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/resources/audio/transcriptions.py", line 213, in create
+    return await self._post(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1796, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1499, in request
+    return await self._request(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1590, in _request
+    raise self._make_status_error_from_response(err.response) from None
+openai.BadRequestError: Error code: 400 - {'error': {'message': 'Audio file is too short. Minimum audio length is 0.1 seconds.', 'type': 'invalid_request_error', 'param': 'file', 'code': 'audio_too_short'}}
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 49, in voice_api
+    transcript = async_to_sync(stt.transcribe_with_filename)(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 332, in __call__
+    return call_result.result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 451, in result
+    return self.__get_result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 372, in main_wrap
+    result = await awaitable
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 52, in transcribe_with_filename
+    raise STTError(f"\u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: {exc}") from exc
+core.ai.exceptions.STTError: \u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: Error code: 400 - {'error': {'message': 'Audio file is too short. Minimum audio length is 0.1 seconds.', 'type': 'invalid_request_error', 'param': 'file', 'code': 'audio_too_short'}}
+Internal Server Error: /api/voice/
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 42, in transcribe_with_filename
+    response = await client.audio.transcriptions.create(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/resources/audio/transcriptions.py", line 213, in create
+    return await self._post(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1796, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1499, in request
+    return await self._request(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1590, in _request
+    raise self._make_status_error_from_response(err.response) from None
+openai.BadRequestError: Error code: 400 - {'error': {'message': 'Audio file is too short. Minimum audio length is 0.1 seconds.', 'type': 'invalid_request_error', 'param': 'file', 'code': 'audio_too_short'}}
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 49, in voice_api
+    transcript = async_to_sync(stt.transcribe_with_filename)(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 332, in __call__
+    return call_result.result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 451, in result
+    return self.__get_result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 372, in main_wrap
+    result = await awaitable
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 52, in transcribe_with_filename
+    raise STTError(f"\u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: {exc}") from exc
+core.ai.exceptions.STTError: \u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: Error code: 400 - {'error': {'message': 'Audio file is too short. Minimum audio length is 0.1 seconds.', 'type': 'invalid_request_error', 'param': 'file', 'code': 'audio_too_short'}}
+Internal Server Error: /api/voice/
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 42, in transcribe_with_filename
+    response = await client.audio.transcriptions.create(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/resources/audio/transcriptions.py", line 213, in create
+    return await self._post(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1796, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1499, in request
+    return await self._request(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1590, in _request
+    raise self._make_status_error_from_response(err.response) from None
+openai.BadRequestError: Error code: 400 - {'error': {'message': 'Audio file is too short. Minimum audio length is 0.1 seconds.', 'type': 'invalid_request_error', 'param': 'file', 'code': 'audio_too_short'}}
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 49, in voice_api
+    transcript = async_to_sync(stt.transcribe_with_filename)(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 332, in __call__
+    return call_result.result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 451, in result
+    return self.__get_result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 372, in main_wrap
+    result = await awaitable
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 52, in transcribe_with_filename
+    raise STTError(f"\u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: {exc}") from exc
+core.ai.exceptions.STTError: \u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: Error code: 400 - {'error': {'message': 'Audio file is too short. Minimum audio length is 0.1 seconds.', 'type': 'invalid_request_error', 'param': 'file', 'code': 'audio_too_short'}}
+Internal Server Error: /api/voice/
+>>> voice_api: name=voice.webm size=958 bytes
+>>> voice_api: name=voice.webm size=1471 bytes
+>>> voice_api: name=voice.webm size=1587 bytes
+Not Found: /favicon.ico
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 42, in transcribe_with_filename
+    response = await client.audio.transcriptions.create(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/resources/audio/transcriptions.py", line 213, in create
+    return await self._post(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1796, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1499, in request
+    return await self._request(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1590, in _request
+    raise self._make_status_error_from_response(err.response) from None
+openai.BadRequestError: Error code: 400 - {'error': {'message': 'Audio file is too short. Minimum audio length is 0.1 seconds.', 'type': 'invalid_request_error', 'param': 'file', 'code': 'audio_too_short'}}
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 49, in voice_api
+    transcript = async_to_sync(stt.transcribe_with_filename)(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 332, in __call__
+    return call_result.result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 451, in result
+    return self.__get_result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 372, in main_wrap
+    result = await awaitable
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 52, in transcribe_with_filename
+    raise STTError(f"\u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: {exc}") from exc
+core.ai.exceptions.STTError: \u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: Error code: 400 - {'error': {'message': 'Audio file is too short. Minimum audio length is 0.1 seconds.', 'type': 'invalid_request_error', 'param': 'file', 'code': 'audio_too_short'}}
+Internal Server Error: /api/voice/
+Task exception was never retrieved
+future: <Task finished name='Task-17' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-18' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-19' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-20' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 42, in transcribe_with_filename
+    response = await client.audio.transcriptions.create(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/resources/audio/transcriptions.py", line 213, in create
+    return await self._post(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1796, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1499, in request
+    return await self._request(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1590, in _request
+    raise self._make_status_error_from_response(err.response) from None
+openai.BadRequestError: Error code: 400 - {'error': {'message': "Invalid file format. Supported formats: ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm']", 'type': 'invalid_request_error', 'param': None, 'code': None}}
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 49, in voice_api
+    transcript = async_to_sync(stt.transcribe_with_filename)(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 332, in __call__
+    return call_result.result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 451, in result
+    return self.__get_result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 372, in main_wrap
+    result = await awaitable
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 52, in transcribe_with_filename
+    raise STTError(f"\u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: {exc}") from exc
+core.ai.exceptions.STTError: \u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: Error code: 400 - {'error': {'message': "Invalid file format. Supported formats: ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm']", 'type': 'invalid_request_error', 'param': None, 'code': None}}
+Internal Server Error: /api/voice/
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 42, in transcribe_with_filename
+    response = await client.audio.transcriptions.create(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/resources/audio/transcriptions.py", line 213, in create
+    return await self._post(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1796, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1499, in request
+    return await self._request(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1590, in _request
+    raise self._make_status_error_from_response(err.response) from None
+openai.BadRequestError: Error code: 400 - {'error': {'message': "Invalid file format. Supported formats: ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm']", 'type': 'invalid_request_error', 'param': None, 'code': None}}
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 49, in voice_api
+    transcript = async_to_sync(stt.transcribe_with_filename)(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 332, in __call__
+    return call_result.result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 451, in result
+    return self.__get_result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 372, in main_wrap
+    result = await awaitable
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 52, in transcribe_with_filename
+    raise STTError(f"\u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: {exc}") from exc
+core.ai.exceptions.STTError: \u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: Error code: 400 - {'error': {'message': "Invalid file format. Supported formats: ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm']", 'type': 'invalid_request_error', 'param': None, 'code': None}}
+Internal Server Error: /api/voice/
+>>> voice_api: name=voice.webm size=79233 bytes
+>>> voice_api: name=voice.webm size=2131 bytes
+>>> voice_api: name=voice.webm size=67981 bytes
+>>> voice_api: name=voice.webm size=3757 bytes
+>>> voice_api: name=voice.webm size=5 bytes
+>>> voice_api: name=voice.webm size=5 bytes
+/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/db/models/fields/__init__.py:1600: RuntimeWarning: DateTimeField Customer.created_at received a naive datetime (2026-10-02 00:00:00) while time zone support is active.
+  warnings.warn(
+Not Found: /favicon.ico
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 42, in transcribe_with_filename
+    response = await client.audio.transcriptions.create(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/resources/audio/transcriptions.py", line 213, in create
+    return await self._post(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1796, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1499, in request
+    return await self._request(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1590, in _request
+    raise self._make_status_error_from_response(err.response) from None
+openai.BadRequestError: Error code: 400 - {'error': {'message': "Invalid file format. Supported formats: ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm']", 'type': 'invalid_request_error', 'param': None, 'code': None}}
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 72, in voice_api
+    transcript = async_to_sync(stt.transcribe_with_filename)(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 332, in __call__
+    return call_result.result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 451, in result
+    return self.__get_result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 372, in main_wrap
+    result = await awaitable
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 52, in transcribe_with_filename
+    raise STTError(f"\u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: {exc}") from exc
+core.ai.exceptions.STTError: \u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: Error code: 400 - {'error': {'message': "Invalid file format. Supported formats: ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm']", 'type': 'invalid_request_error', 'param': None, 'code': None}}
+Internal Server Error: /api/voice/
+Task exception was never retrieved
+future: <Task finished name='Task-17' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-18' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-19' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-20' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 42, in transcribe_with_filename
+    response = await client.audio.transcriptions.create(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/resources/audio/transcriptions.py", line 213, in create
+    return await self._post(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1796, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1499, in request
+    return await self._request(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1590, in _request
+    raise self._make_status_error_from_response(err.response) from None
+openai.BadRequestError: Error code: 400 - {'error': {'message': "Invalid file format. Supported formats: ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm']", 'type': 'invalid_request_error', 'param': None, 'code': None}}
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 72, in voice_api
+    transcript = async_to_sync(stt.transcribe_with_filename)(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 332, in __call__
+    return call_result.result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 451, in result
+    return self.__get_result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 372, in main_wrap
+    result = await awaitable
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 52, in transcribe_with_filename
+    raise STTError(f"\u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: {exc}") from exc
+core.ai.exceptions.STTError: \u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: Error code: 400 - {'error': {'message': "Invalid file format. Supported formats: ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm']", 'type': 'invalid_request_error', 'param': None, 'code': None}}
+Internal Server Error: /api/voice/
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 42, in transcribe_with_filename
+    response = await client.audio.transcriptions.create(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/resources/audio/transcriptions.py", line 213, in create
+    return await self._post(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1796, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1499, in request
+    return await self._request(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1590, in _request
+    raise self._make_status_error_from_response(err.response) from None
+openai.BadRequestError: Error code: 400 - {'error': {'message': "Invalid file format. Supported formats: ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm']", 'type': 'invalid_request_error', 'param': None, 'code': None}}
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 72, in voice_api
+    transcript = async_to_sync(stt.transcribe_with_filename)(
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 332, in __call__
+    return call_result.result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 451, in result
+    return self.__get_result()
+  File "/opt/alt/python310/lib64/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/asgiref/sync.py", line 372, in main_wrap
+    result = await awaitable
+  File "/home/mykamani/voice_app/core/ai/openai_provider.py", line 52, in transcribe_with_filename
+    raise STTError(f"\u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: {exc}") from exc
+core.ai.exceptions.STTError: \u062e\u0637\u0627 \u062f\u0631 \u062a\u0628\u062f\u06cc\u0644 \u0635\u062f\u0627 \u0628\u0647 \u0645\u062a\u0646: Error code: 400 - {'error': {'message': "Invalid file format. Supported formats: ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm']", 'type': 'invalid_request_error', 'param': None, 'code': None}}
+Internal Server Error: /api/voice/
+Task exception was never retrieved
+future: <Task finished name='Task-17' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-18' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-19' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-20' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
