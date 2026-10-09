@@ -4583,3 +4583,22 @@ Traceback (most recent call last):
   File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
     raise RuntimeError('Event loop is closed')
 RuntimeError: Event loop is closed
+Invalid HTTP_HOST header: 'www.assistant.mykaman.ir'. You may need to add 'www.assistant.mykaman.ir' to ALLOWED_HOSTS.
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/utils/deprecation.py", line 133, in __call__
+    response = self.process_request(request)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/middleware/common.py", line 48, in process_request
+    host = request.get_host()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/http/request.py", line 151, in get_host
+    raise DisallowedHost(msg)
+django.core.exceptions.DisallowedHost: Invalid HTTP_HOST header: 'www.assistant.mykaman.ir'. You may need to add 'www.assistant.mykaman.ir' to ALLOWED_HOSTS.
+Bad Request: /
+>>> voice_api: orig_name=voice.webm ct=audio/webm ext=webm size=41057
+>>> voice_api: orig_name=voice.webm ct=audio/webm ext=webm size=5
+>>> voice_api: orig_name=voice.webm ct=audio/webm ext=webm size=15577
+>>> voice_api: orig_name=voice.webm ct=audio/webm ext=webm size=5
+>>> voice_api: orig_name=voice.webm ct=audio/webm ext=webm size=90605
+>>> voice_api: orig_name=voice.webm ct=audio/webm ext=webm size=5
+>>> voice_api: orig_name=voice.webm ct=audio/webm ext=webm size=84778
