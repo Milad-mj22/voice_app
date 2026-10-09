@@ -497,3 +497,150 @@ def _normalize_phone(phone):
     if len(digits) == 10 and digits.startswith("9"):
         digits = "0" + digits
     return digits
+
+
+
+
+
+
+# ═══════════════════════════════════════════════════════════
+# پردازش هوشمند شماره تلفن
+# ═══════════════════════════════════════════════════════════
+
+# کلمات عددی فارسی (شامل اشکال مختلف)
+PHONE_DIGIT_WORDS = {
+    # صفر
+    "صفر": "0", "صفر ": "0",
+    # یک
+    "یک": "1", "یه": "1", "يک": "1", "يك": "1",
+    # دو
+    "دو": "2", "٢": "2",
+    # سه
+    "سه": "3", "سِه": "3",
+    # چهار
+    "چهار": "4", "چار": "4", "چهار ": "4",
+    # پنج
+    "پنج": "5", "پنج ": "5", "پَنج": "5",
+    # شش
+    "شش": "6", "شیش": "6", "شِش": "6", "شش ": "6",
+    # هفت
+    "هفت": "7", "هَفت": "7", "هفت ": "7",
+    # هشت
+    "هشت": "8", "هَشت": "8", "هشت ": "8",
+    # نه
+    "نه": "9", "نُه": "9", "نو": "9", "نٌه": "9",
+}
+
+
+def extract_phone_from_text(text: str) -> str:
+    """
+    استخراج شماره تلفن از متن فارسی
+    - اعداد فارسی/عربی → انگلیسی
+    - کلمات عددی → رقم
+    - گروه‌بندی با فاصله/خط تیره → حذف
+    - نرمال‌سازی نهایی: 11 رقم با 09
+    
+    خروجی: شماره 11 رقمی یا "" اگر پیدا نشد
+    """
+    if not text:
+        return ""
+
+    # ۱. تبدیل اعداد فارسی/عربی به انگلیسی
+    text = text.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789"))
+    text = text.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+
+    # ۲. تبدیل کلمات عددی به رقم
+    words = text.split()
+    converted_words = []
+    for w in words:
+        # حذف علائم نگارشی
+        clean = w.strip("،.,؛:!?؟")
+        if clean in PHONE_DIGIT_WORDS:
+            converted_words.append(PHONE_DIGIT_WORDS[clean])
+        else:
+            # اگه کلمه ترکیبی بود (مثلاً "صفرنه") — نادر ولی ممکنه
+            converted_words.append(w)
+
+    text = " ".join(converted_words)
+
+    # ۳. جدا کردن دنباله‌های عددی
+    # مثلاً: "یه مشتری به اسم علی با شماره 0 9 1 2 3 4 5 6 7 8 9"
+    # هدف: پیدا کردن طولانی‌ترین دنباله‌ی رقم‌ها
+    
+    import re
+    
+    # همه‌ی رقم‌ها رو با فاصله جدا کن
+    # بعد دنباله‌های طولانی رو پیدا کن
+    
+    # روش ۱: دنباله‌های رقم با فاصله (حداقل ۸ رقم)
+    # مثال: "0 9 1 2 3 4 5 6 7 8 9" یا "0912345678 9"
+    digits_only = re.sub(r"[^\d]", "", text)
+    
+    # الان digits_only همه‌ی رقم‌های متن رو داره
+    # ولی ممکنه شامل شماره‌های دیگه (مثل مبلغ) هم باشه
+    
+    # روش دقیق‌تر: به دنبال الگوی شماره موبایل بگرد
+    # الگوهای ممکن:
+    # - 09123456789 (11 رقم پشت سر هم)
+    # - 9123456789 (10 رقم، بدون 0)
+    # - 0912345678 + 9 (11 رقم با فاصله)
+    
+    # پیدا کردن همه‌ی دنباله‌های رقم با طول ≥ 10
+    # اول فاصله‌های اضافی رو حذف کن
+    compact = re.sub(r"\s+", "", text)
+    
+    # الان الگوهایی مثل "09123456789" یا "0912345678" رو پیدا کن
+    # دنباله‌های 10-11 رقمی که با 9 یا 0 شروع می‌شن
+    patterns = [
+        r"0?9\d{9}",       # 09123456789 یا 9123456789
+        r"\d{11}",         # هر 11 رقمی
+        r"\d{10}",         # هر 10 رقمی
+    ]
+    
+    for pat in patterns:
+        matches = re.findall(pat, compact)
+        for m in matches:
+            phone = _normalize_phone(m)
+            if phone and len(phone) == 11:
+                return phone
+
+    # اگه هیچ الگویی پیدا نشد، سعی کن از digits_only استفاده کنی
+    # ولی فقط اگه 11 رقم یا کمتر باشه
+    if 10 <= len(digits_only) <= 11:
+        phone = _normalize_phone(digits_only)
+        if phone:
+            return phone
+
+    return ""
+
+
+def _normalize_phone(phone):
+    """تبدیل شماره به فرمت استاندارد 09xxxxxxxxx"""
+    if not phone:
+        return ""
+    # فقط رقم‌ها
+    digits = "".join(c for c in str(phone) if c.isdigit())
+    # تبدیل اعداد فارسی
+    digits = digits.translate(str.maketrans(PERSIAN_DIGITS, ENGLISH_DIGITS))
+    
+    # حالت ۱: 11 رقم با 09
+    if len(digits) == 11 and digits.startswith("09"):
+        return digits
+    
+    # حالت ۲: 11 رقم با 9 (بدون 0)
+    if len(digits) == 11 and digits.startswith("9"):
+        return "0" + digits
+    
+    # حالت ۳: 10 رقم با 9 → 0 اضافه کن
+    if len(digits) == 10 and digits.startswith("9"):
+        return "0" + digits
+    
+    # حالت ۴: 10 رقم با 0 → یه رقم کم داره
+    if len(digits) == 10 and digits.startswith("0"):
+        return digits  # ناقص ولی برمی‌گردونیم
+    
+    # حالت ۵: 11 رقم با هر چیزی → اگه با 9 شروع می‌شه قبوله
+    if len(digits) == 11:
+        return digits
+    
+    return ""

@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 
-from apps.voice.tools import normalize_persian_text
+from apps.voice.tools import extract_phone_from_text, normalize_persian_text
 from core.ai import get_stt, get_tts
 from .agent import VoiceAgent
 from .models import VoiceLog
@@ -76,6 +76,16 @@ def voice_api(request):
 
         # ⭐ نرمال‌سازی متن
         transcript = normalize_persian_text(transcript)
+
+        # ⭐ استخراج شماره تلفن و اضافه کردن به متن با فرمت استاندارد
+        phone = extract_phone_from_text(transcript)
+        if phone:
+            # به GPT بگو این شماره است
+            transcript = f"{transcript} [شماره تلفن استخراج‌شده: {phone}]"
+            logger.info(f">>> extracted phone: {phone}")
+
+        logger.info(f">>> voice_api: normalized = {transcript!r}")
+
 
         logger.info(f">>> voice_api: normalized = {transcript!r}")
 
