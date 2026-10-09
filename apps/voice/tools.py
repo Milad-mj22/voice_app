@@ -187,6 +187,32 @@ def _to_date(v):
         return None
 
 
+
+
+
+
+def update_customer(business, user, customer_name, phone=None, **kwargs):
+    """ویرایش مشتری موجود"""
+    if not customer_name:
+        return {"ok": False, "error": "نام مشتری رو بگو."}
+
+    customer = Customer.objects.filter(
+        business=business, title__icontains=customer_name
+    ).first()
+
+    if not customer:
+        return {"ok": False, "error": f"مشتری «{customer_name}» پیدا نشد."}
+
+    if phone:
+        # نرمال‌سازی شماره
+        phone = _normalize_phone(phone)
+        customer.phone = phone
+
+    customer.save()
+    return {"ok": True, "message": f"اطلاعات مشتری «{customer.title}» ویرایش شد."}
+
+
+
 # ============================================================
 # نقشه‌ی توابع و اسکیمای OpenAI
 # ============================================================
@@ -201,6 +227,7 @@ TOOL_FUNCTIONS = {
     "search_customer": search_customer,
     "get_report": get_report,
     "get_tasks_today": get_tasks_today,
+    "update_customer": update_customer,
 }
 
 
@@ -328,4 +355,145 @@ TOOLS_SCHEMA = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
+
+{
+    "type": "function",
+    "function": {
+        "name": "update_customer",
+        "description": "ویرایش اطلاعات مشتری موجود (مثل شماره تلفن)",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "customer_name": {"type": "string", "description": "نام مشتری"},
+                "phone": {"type": "string", "description": "شماره تماس جدید"},
+            },
+            "required": ["customer_name"],
+        },
+    },
+},
+
 ]
+
+
+
+
+import re
+
+# ═══════════════════════════════════════
+# نرمال‌سازی متن Whisper
+# ═══════════════════════════════════════
+
+PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹"
+ENGLISH_DIGITS = "0123456789"
+
+# اعداد حرفی به رقم
+NUMBER_WORDS = {
+    "صفر": "0", "یک": "1", "یه": "1", "دو": "2", "سه": "3",
+    "چهار": "4", "چار": "4", "پنج": "5", "شش": "6", "شیش": "6",
+    "هفت": "7", "هشت": "8", "نه": "9", "نُه": "9", "نو": "9",
+    # دو رقمی‌ها
+    "ده": "10", "یازده": "11", "دوازده": "12", "سیزده": "13",
+    "چهارده": "14", "پانزده": "15", "شانزده": "16",
+    "هفده": "17", "هجده": "18", "نوزده": "19",
+    "بیست": "20", "سی": "30", "چهل": "40", "پنجاه": "50",
+    "شصت": "60", "هفتاد": "70", "هشتاد": "80", "نود": "90",
+    "صد": "100", "یکصد": "100", "دویست": "200", "سیصد": "300",
+    "چهارصد": "400", "پانصد": "500", "ششصد": "600",
+    "هفتصد": "700", "هشتصد": "800", "نهصد": "900",
+    "هزار": "1000", "میلیون": "1000000", "ملیون": "1000000",
+    "میلیارد": "1000000000",
+}
+
+
+def normalize_persian_text(text: str) -> str:
+    """
+    نرمال‌سازی متن خروجی Whisper:
+    - تبدیل اعداد فارسی به انگلیسی
+    - تبدیل اعداد حرفی به رقم
+    - تمیزکاری فاصله‌ها
+    """
+    if not text:
+        return ""
+
+    # ۱. تبدیل اعداد فارسی به انگلیسی
+    text = text.translate(str.maketrans(PERSIAN_DIGITS, ENGLISH_DIGITS))
+    text = text.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))  # عربی
+
+    # ۲. تبدیل اعداد حرفی به رقم (فقط وقتی کنار هم می‌آن)
+    # الگو: چند کلمه‌ی عددی پشت سر هم
+    words = text.split()
+    result = []
+    i = 0
+    while i < len(words):
+        w = words[i].strip("،.,؛:!?")
+        if w in NUMBER_WORDS:
+            # جمع کن اعداد پشت سر هم رو
+            num_parts = []
+            j = i
+            while j < len(words):
+                wj = words[j].strip("،.,؛:!?")
+                if wj in NUMBER_WORDS:
+                    num_parts.append(NUMBER_WORDS[wj])
+                    j += 1
+                else:
+                    break
+
+            # ترکیب اعداد: اگه یه عدد ساده بود، همون رو بذار
+            if len(num_parts) == 1:
+                result.append(num_parts[0])
+            else:
+                # محاسبه‌ی عدد مرکب مثل «بیست میلیون»
+                total = _combine_numbers(num_parts)
+                result.append(str(total))
+            i = j
+        else:
+            result.append(words[i])
+            i += 1
+
+    text = " ".join(result)
+
+    # ۳. تمیزکاری نهایی
+    text = re.sub(r"\s+", " ", text).strip()
+
+    return text
+
+
+def _combine_numbers(parts):
+    """ترکیب اجزای عددی مثل ['20', '1000000'] = 20000000"""
+    if not parts:
+        return 0
+
+    total = 0
+    current = 0
+
+    for p in parts:
+        n = int(p)
+        if n >= 1000:
+            if current == 0:
+                current = 1
+            total += current * n
+            current = 0
+        elif n >= 100:
+            if current == 0:
+                current = 1
+            current *= n
+        else:
+            current += n
+
+    return total + current
+
+
+
+
+def _normalize_phone(phone):
+    """تبدیل شماره به فرمت استاندارد 09xxxxxxxxx"""
+    if not phone:
+        return ""
+    # فقط رقم‌ها
+    digits = "".join(c for c in str(phone) if c.isdigit())
+    # تبدیل اعداد فارسی
+    digits = digits.translate(str.maketrans(PERSIAN_DIGITS, ENGLISH_DIGITS))
+    # اگه ۱۰ رقم بود و با 9 شروع می‌شد، 0 اضافه کن
+    if len(digits) == 10 and digits.startswith("9"):
+        digits = "0" + digits
+    return digits

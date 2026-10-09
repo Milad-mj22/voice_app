@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 
+from apps.voice.tools import normalize_persian_text
 from core.ai import get_stt, get_tts
 from .agent import VoiceAgent
 from .models import VoiceLog
@@ -69,9 +70,19 @@ def voice_api(request):
     try:
         from asgiref.sync import async_to_sync
         stt = get_stt()
+
+
         transcript = async_to_sync(stt.transcribe_with_filename)(
             audio_bytes, filename=filename, language="fa"
         )
+
+        # ⭐ نرمال‌سازی متن
+        transcript = normalize_persian_text(transcript)
+
+        print(f">>> voice_api: normalized = {transcript}")
+
+
+
     except Exception as exc:
         logger.exception("STT error")
         _save_log(business, request.user, error=f"STT: {exc}")
