@@ -7,6 +7,7 @@ from django.views.generic import TemplateView
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("accounts/", include("apps.accounts.urls")),   # ← همه‌ی accounts
+    path("", include("apps.voice.urls")),  
     path("", include("apps.crm.urls")),
     path("", include("apps.dashboard.urls")),
     path("test-ws/", TemplateView.as_view(template_name="test_ws.html")),

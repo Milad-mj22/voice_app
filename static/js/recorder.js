@@ -1,51 +1,59 @@
 /**
- * VoiceRecorder — ضبط صدا با MediaRecorder و ارسال chunk به chunk
+ * VoiceRecorder — ضبط صدا و برگرداندن یک Blob کامل
  */
 class VoiceRecorder {
-  constructor(onChunk, onStart, onStop) {
-    this.onChunk = onChunk;
-    this.onStart = onStart;
-    this.onStop = onStop;
+  constructor() {
     this.recorder = null;
     this.stream = null;
+    this.chunks = [];
   }
 
   async start() {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true }
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 16000,
+        }
       });
     } catch (err) {
       throw new Error("دسترسی به میکروفن رد شد.");
     }
 
-    // انتخاب بهترین فرمت ممکن
     const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
       ? "audio/webm;codecs=opus"
       : "audio/webm";
 
     this.recorder = new MediaRecorder(this.stream, { mimeType: mime });
+    this.chunks = [];
 
-    this.recorder.ondataavailable = async (e) => {
-      if (e.data.size === 0) return;
-      const buf = await e.data.arrayBuffer();
-      // تبدیل به base64
-      const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-      this.onChunk(b64);
+    this.recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) this.chunks.push(e.data);
     };
 
-    this.recorder.start(250); // هر ۲۵۰ میلی‌ثانیه
-    if (this.onStart) this.onStart();
+    this.recorder.start(250);
   }
 
   stop() {
-    if (!this.recorder || this.recorder.state === "inactive") return;
-    this.recorder.stop();
-    if (this.stream) {
-      this.stream.getTracks().forEach(t => t.stop());
-      this.stream = null;
-    }
-    if (this.onStop) this.onStop();
+    return new Promise((resolve) => {
+      if (!this.recorder || this.recorder.state === "inactive") {
+        resolve(null);
+        return;
+      }
+
+      this.recorder.onstop = () => {
+        const blob = new Blob(this.chunks, { type: "audio/webm" });
+        this.chunks = [];
+        if (this.stream) {
+          this.stream.getTracks().forEach(t => t.stop());
+          this.stream = null;
+        }
+        resolve(blob);
+      };
+
+      this.recorder.stop();
+    });
   }
 
   isRecording() {
