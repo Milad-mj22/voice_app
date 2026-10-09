@@ -2,7 +2,6 @@
 API دستیار صوتی — نسخه HTTP (بدون WebSocket)
 """
 import base64
-import json
 import logging
 import time
 
@@ -18,6 +17,27 @@ from .models import VoiceLog
 
 
 logger = logging.getLogger(__name__)
+
+
+def _detect_extension(audio_file):
+    """تشخیص پسوند واقعی فایل صوتی"""
+    content_type = (audio_file.content_type or "").lower()
+    name = (audio_file.name or "").lower()
+
+    if "webm" in content_type or name.endswith(".webm"):
+        return "webm"
+    if "mp4" in content_type or name.endswith(".m4a") or name.endswith(".mp4"):
+        return "mp4"
+    if "mpeg" in content_type or name.endswith(".mp3") or name.endswith(".mpga"):
+        return "mp3"
+    if "ogg" in content_type or name.endswith(".ogg") or name.endswith(".oga"):
+        return "ogg"
+    if "wav" in content_type or name.endswith(".wav"):
+        return "wav"
+    if "flac" in content_type or name.endswith(".flac"):
+        return "flac"
+    return "webm"  # پیش‌فرض
+
 
 @login_required
 @require_POST
@@ -37,22 +57,28 @@ def voice_api(request):
         return JsonResponse({"ok": False, "error": "حجم صدا زیاد است."}, status=400)
 
     audio_bytes = audio_file.read()
-    filename = audio_file.name or "voice.webm"
 
-    print(f">>> voice_api: name={filename} size={len(audio_bytes)} bytes")
+    # ═══ تشخیص پسوند ═══
+    ext = _detect_extension(audio_file)
+    filename = f"voice.{ext}"
 
-    # ═══════════ STT ═══════════
+    print(f">>> voice_api: orig_name={audio_file.name} ct={audio_file.content_type} "
+          f"ext={ext} size={len(audio_bytes)}")
+
+    # ═══ STT ═══
     try:
         from asgiref.sync import async_to_sync
         stt = get_stt()
-        # پسوند فایل رو به whisper بده تا فرمت رو درست تشخیص بده
         transcript = async_to_sync(stt.transcribe_with_filename)(
             audio_bytes, filename=filename, language="fa"
         )
     except Exception as exc:
         logger.exception("STT error")
         _save_log(business, request.user, error=f"STT: {exc}")
-        return JsonResponse({"ok": False, "error": "نتونستم صدا رو تشخیص بدم."}, status=500)
+        return JsonResponse(
+            {"ok": False, "error": f"نتونستم صدا رو تشخیص بدم. ({ext})"},
+            status=500,
+        )
 
     if not transcript:
         return JsonResponse(
@@ -60,33 +86,30 @@ def voice_api(request):
             status=200,
         )
 
-    # ═══════════ ۲. Agent (LLM + Tools) ═══════════
+    # ═══ Agent ═══
     try:
-        agent = VoiceAgent(business=business, user=request.user)
         from asgiref.sync import async_to_sync
+        agent = VoiceAgent(business=business, user=request.user)
         result = async_to_sync(agent.handle)(transcript)
     except Exception as exc:
         logger.exception("Agent error")
         _save_log(business, request.user, transcript=transcript, error=f"Agent: {exc}")
-        return JsonResponse(
-            {"ok": False, "error": "خطا در پردازش درخواست."},
-            status=500,
-        )
+        return JsonResponse({"ok": False, "error": "خطا در پردازش درخواست."}, status=500)
 
     reply = result.get("reply", "")
     actions = result.get("actions", [])
 
-    # ═══════════ ۳. تبدیل پاسخ به صدا (TTS) ═══════════
+    # ═══ TTS ═══
     audio_b64 = ""
     try:
-        tts = get_tts()
         from asgiref.sync import async_to_sync
+        tts = get_tts()
         audio_out = async_to_sync(tts.synthesize)(reply)
         audio_b64 = base64.b64encode(audio_out).decode()
     except Exception as exc:
         logger.warning(f"TTS error: {exc}")
 
-    # ═══════════ ۴. ذخیره لاگ ═══════════
+    # ═══ ذخیره لاگ ═══
     duration_ms = int((time.time() - started) * 1000)
     _save_log(
         business, request.user,
@@ -101,10 +124,7 @@ def voice_api(request):
         "transcript": transcript,
         "reply": reply,
         "actions": [
-            {
-                "name": a["name"],
-                "result": a.get("result", {}),
-            }
+            {"name": a["name"], "result": a.get("result", {})}
             for a in actions
         ],
         "audio": audio_b64,
