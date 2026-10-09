@@ -88,11 +88,16 @@
     btn?.classList.remove("recording");
     setStatus("⏳ در حال ارسال…");
 
-    const blob = await recorder.stop();
-    if (!blob || blob.size === 0) {
+    const result = await recorder.stop();
+    if (!result || !result.blob || result.blob.size === 0) {
       setStatus("صدایی ضبط نشد.", "error");
       return;
     }
+
+    isBusy = true;
+    await sendToServer(result.blob, result.extension, result.mimeType);
+    isBusy = false;
+  }
 
     isBusy = true;
     await sendToServer(blob);
@@ -100,11 +105,11 @@
   }
 
   // ═══════════ ارسال به سرور ═══════════
-  async function sendToServer(blob) {
+  async function sendToServer(blob, extension, mimeType) {
     const fd = new FormData();
-    fd.append("audio", blob, "voice.webm");
+    const filename = `voice.${extension || "webm"}`;
+    fd.append("audio", blob, filename);
 
-    // CSRF از کوکی
     const csrf = getCSRFToken();
 
     try {
@@ -115,6 +120,14 @@
         headers: csrf ? { "X-CSRFToken": csrf } : {},
       });
 
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error("[voice.js] server error:", res.status, txt);
+        setStatus("خطا در سرور: " + res.status, "error");
+        addLine("error", "❌ خطای سرور " + res.status);
+        return;
+      }
+
       const data = await res.json();
 
       if (!data.ok) {
@@ -123,31 +136,26 @@
         return;
       }
 
-      // نمایش متن کاربر
       if (data.transcript) {
         addLine("user", "🗣 " + data.transcript);
       }
 
-      // نمایش عملیات‌ها
       if (data.actions && data.actions.length) {
         data.actions.forEach(a => {
           addLine("action", "⚙️ " + formatAction(a));
         });
       }
 
-      // نمایش پاسخ
       if (data.reply) {
         addLine("reply", "💬 " + data.reply);
       }
 
-      // پخش صدا
       if (data.audio) {
         playAudio(data.audio);
       }
 
       setStatus("✅ انجام شد", "ok");
 
-      // بعد از ۲ ثانیه برگرده به حالت عادی
       setTimeout(() => {
         if (!isBusy) setStatus("دکمه رو نگه دار و صحبت کن");
       }, 2500);
@@ -158,7 +166,6 @@
       addLine("error", "❌ " + e.message);
     }
   }
-
   function getCSRFToken() {
     // اول از window.CSRF_TOKEN
     if (window.CSRF_TOKEN) return window.CSRF_TOKEN;

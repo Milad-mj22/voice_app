@@ -14,14 +14,30 @@ def _client() -> AsyncOpenAI:
     return AsyncOpenAI(api_key=settings.AI_CONFIG["OPENAI_API_KEY"])
 
 
-# ---------- STT ----------
+# ═══════════════════════════════════════════════
+# STT (Speech-to-Text)
+# ═══════════════════════════════════════════════
 class OpenAI_STT(BaseSTT):
+
     async def transcribe(self, audio_bytes: bytes, language: str = "fa") -> str:
+        """پیش‌فرض: webm (برای کروم/اندروید/فایرفاکس)"""
+        return await self.transcribe_with_filename(
+            audio_bytes, filename="voice.webm", language=language
+        )
+
+    async def transcribe_with_filename(
+        self,
+        audio_bytes: bytes,
+        filename: str = "voice.webm",
+        language: str = "fa",
+    ) -> str:
+        """
+        با نام فایل مشخص — برای پشتیبانی از فرمت‌های iOS (m4a, mp4)
+        """
         try:
             client = _client()
-            # Whisper یه فایل با پسوند می‌خواد → از BytesIO استفاده می‌کنیم
             audio_file = io.BytesIO(audio_bytes)
-            audio_file.name = "voice.webm"
+            audio_file.name = filename
 
             response = await client.audio.transcriptions.create(
                 model=settings.AI_CONFIG["STT_MODEL"],   # whisper-1
@@ -29,16 +45,18 @@ class OpenAI_STT(BaseSTT):
                 language=language,
                 response_format="text",
             )
-            # response گاهی مستقیم رشته‌ست
+            # response گاهی رشته‌ست، گاهی آبجکت
             text = response if isinstance(response, str) else response.text
             return (text or "").strip()
         except Exception as exc:
             raise STTError(f"خطا در تبدیل صدا به متن: {exc}") from exc
 
 
-# ---------- TTS ----------
-# ---------- TTS ----------
+# ═══════════════════════════════════════════════
+# TTS (Text-to-Speech)
+# ═══════════════════════════════════════════════
 class OpenAI_TTS(BaseTTS):
+
     async def synthesize(self, text: str) -> bytes:
         try:
             client = _client()
@@ -48,13 +66,18 @@ class OpenAI_TTS(BaseTTS):
                 input=text,
                 response_format="mp3",
             )
-            # پاسخ به صورت generator sync هست، نه async
+            # پاسخ generator sync هست، نه async
             audio = b"".join(response.iter_bytes())
             return audio
         except Exception as exc:
             raise TTSError(f"خطا در تبدیل متن به صدا: {exc}") from exc
-# ---------- LLM ----------
+
+
+# ═══════════════════════════════════════════════
+# LLM (Chat + Function Calling)
+# ═══════════════════════════════════════════════
 class OpenAI_LLM(BaseLLM):
+
     async def chat(
         self,
         messages: list[dict],
