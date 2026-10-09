@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>تست WebSocket مرداس</title>
+<style>
+  body{font-family:Tahoma,sans-serif;padding:20px;max-width:800px;margin:auto}
+  button{padding:15px 30px;font-size:16px;border:0;border-radius:10px;
+         background:#2563eb;color:#fff;cursor:pointer}
+  button:disabled{background:#94a3b8}
+  button.recording{background:#dc2626}
+  #log{background:#0f172a;color:#e2e8f0;padding:15px;border-radius:10px;
+       min-height:300px;white-space:pre-wrap;font-family:monospace;
+       direction:ltr;text-align:left;margin-top:20px;overflow:auto;max-height:500px}
+  .status{padding:10px;border-radius:8px;margin:10px 0;font-weight:bold}
+  .ok{background:#dcfce7;color:#166534}
+  .err{background:#fee2e2;color:#991b1b}
+  .info{background:#dbeafe;color:#1e40af}
+</style>
+</head>
+<body>
+
+<h2>🎤 تست دستیار صوتی مرداس</h2>
+<div id="status" class="status info">در حال اتصال...</div>
+
+<button id="btn" disabled>🎤 نگه دار و صحبت کن</button>
+
+<div id="log"></div>
+
+<script>
+const logEl = document.getElementById("log");
+const statusEl = document.getElementById("status");
+const btn = document.getElementById("btn");
+
+function log(msg) {
+  logEl.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function setStatus(msg, type="info") {
+  statusEl.textContent = msg;
+  statusEl.className = "status " + type;
+}
+
+// ---------- اتصال WebSocket ----------
+const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+const wsUrl = `${protocol}//${location.host}/ws/voice/`;
+log("→ اتصال به " + wsUrl);
+
+const ws = new WebSocket(wsUrl);
+
+ws.onopen = () => {
+  log("✅ WebSocket باز شد");
+};
+
+ws.onclose = (e) => {
+  log(`❌ WebSocket بسته شد — کد: ${e.code} — دلیل: ${e.reason || "نامشخص"}`);
+  if (e.code === 4001) setStatus("❌ لاگین نیستی! اول برو /admin/ و لاگین کن", "err");
+  else if (e.code === 4002) setStatus("❌ کسب‌وکار پیدا نشد", "err");
+  else setStatus("❌ اتصال بسته شد (" + e.code + ")", "err");
+  btn.disabled = true;
+};
+
+ws.onerror = (e) => {
+  log("⚠️ خطای WebSocket رخ داد");
+};
+
+ws.onmessage = (e) => {
+  let m;
+  try { m = JSON.parse(e.data); } catch { log("← (غیر JSON) " + e.data); return; }
+  log("← " + JSON.stringify(m).slice(0, 300));
+
+  switch (m.type) {
+    case "ready":
+      setStatus("✅ آماده — دکمه رو نگه دار", "ok");
+      btn.disabled = false;
+      break;
+    case "recording":
+      setStatus("🔴 در حال ضبط...", "info");
+      break;
+    case "transcript":
+      log("📝 متن: " + m.text);
+      break;
+    case "action":
+      log("⚙️ عملیات: " + m.name + " — " + JSON.stringify(m.result));
+      break;
+    case "reply_text":
+      log("💬 پاسخ: " + m.text);
+      setStatus("✅ پاسخ داده شد", "ok");
+      break;
+    case "reply_audio":
+      playAudio(m.data);
+      break;
+    case "error":
+      log("❌ خطا: " + m.message);
+      setStatus("❌ " + m.message, "err");
+      break;
+  }
+};
+
+function playAudio(b64) {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const blob = new Blob([bytes], { type: "audio/mpeg" });
+  new Audio(URL.createObjectURL(blob)).play();
+  log("🔊 پخش صدا");
+}
+
+// ---------- ضبط صدا ----------
+let recorder = null;
+let chunks = [];
+
+btn.onmousedown = async () => {
+  if (ws.readyState !== WebSocket.OPEN) {
+    log("⚠️ WebSocket آماده نیست");
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+    chunks = [];
+
+    recorder.ondataavailable = async (e) => {
+      if (e.data.size === 0) return;
+      if (ws.readyState !== WebSocket.OPEN) return;
+      const buf = await e.data.arrayBuffer();
+      const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+      ws.send(JSON.stringify({ type: "audio", data: b64 }));
+    };
+
+    ws.send(JSON.stringify({ type: "start" }));
+    recorder.start(250);
+    btn.classList.add("recording");
+    btn.textContent = "🔴 در حال ضبط... (رها کن تا بفرسته)";
+    log("🎤 ضبط شروع شد");
+  } catch (err) {
+    log("❌ خطای میکروفن: " + err.message);
+    setStatus("دسترسی به میکروفن رد شد", "err");
+  }
+};
+
+btn.onmouseup = btn.onmouseleave = () => {
+  if (!recorder || recorder.state === "inactive") return;
+  recorder.stop();
+  recorder.stream.getTracks().forEach(t => t.stop());
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "stop" }));
+  }
+  btn.classList.remove("recording");
+  btn.textContent = "🎤 نگه دار و صحبت کن";
+  log("⏹ ضبط متوقف شد — منتظر پردازش...");
+  setStatus("⏳ در حال پردازش...", "info");
+};
+</script>
+
+</body>
+</html>

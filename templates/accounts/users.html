@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}مدیریت کاربران{% endblock %}
+
+{% block content %}
+<section class="panel show">
+  <a href="/" class="back">← بازگشت به اتاق فرمان</a>
+  <div class="section-head">
+    <h2>👥 مدیریت کاربران</h2>
+    <a href="{% url 'accounts_user_create' %}" class="btn-primary">＋ افزودن کاربر</a>
+  </div>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="user-list">
+    {% for u in users %}
+      <div class="user-row">
+        <div class="user-avatar">{{ u.username|first|upper }}</div>
+        <div class="user-info">
+          <b>{{ u.get_full_name|default:u.username }}</b>
+          <small>
+            {{ u.get_role_display }}
+            {% if u == user %} · (شما){% endif %}
+          </small>
+          {% if u.email %}<small>{{ u.email }}</small>{% endif %}
+        </div>
+        <div class="user-actions">
+          <a href="{% url 'accounts_user_edit' u.id %}" class="btn-small">ویرایش</a>
+          {% if u != user and u.role != "owner" %}
+            <button class="btn-small btn-danger"
+                    onclick="deleteUser({{ u.id }})">حذف</button>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function deleteUser(id) {
+  if (!confirm("این کاربر حذف شود؟")) return;
+  fetch(`/accounts/users/${id}/delete/`, {
+    method: "POST",
+    headers: { "X-CSRFToken": window.CSRF_TOKEN },
+    credentials: "same-origin",
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) location.reload();
+    else alert(d.error || "خطا");
+  })
+  .catch(() => alert("خطا در حذف"));
+}
+</script>
+{% endblock %}

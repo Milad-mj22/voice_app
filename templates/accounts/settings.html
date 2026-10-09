@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}تنظیمات کسب‌وکار{% endblock %}
+
+{% block content %}
+<section class="panel show">
+  <a href="/" class="back">← بازگشت به اتاق فرمان</a>
+  <h2>⚙️ تنظیمات کسب‌وکار</h2>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="settings-form">
+    {% csrf_token %}
+
+    <div class="settings-section">
+      <h3>اطلاعات پایه</h3>
+      <label>نام کسب‌وکار</label>
+      {{ form.name }}
+
+      <label>شناسه URL (لاتین)</label>
+      {{ form.slug }}
+      <small class="help">این آدرس یکتای کسب‌وکار شماست.</small>
+    </div>
+
+    <div class="settings-section">
+      <h3>هویت بصری</h3>
+
+      <label>لوگو فعلی</label>
+      <div class="logo-preview-wrap">
+        {% if business.logo %}
+          <img id="logoPreview" src="{{ business.logo.url }}" class="logo-preview" alt="لوگو">
+        {% else %}
+          <img id="logoPreview" src="" class="logo-preview" style="display:none" alt="لوگو">
+          <div id="logoPlaceholder" class="logo-preview logo-placeholder">⚡</div>
+        {% endif %}
+      </div>
+
+      <label>آپلود لوگوی جدید</label>
+      <input type="file" id="logoInput" accept="image/*" class="form-input">
+      <small class="help">حداکثر ۲ مگابایت — PNG یا JPG</small>
+
+      <label>رنگ برند</label>
+      {{ form.brand_color }}
+    </div>
+
+    <div class="settings-section">
+      <h3>اطلاعات تماس</h3>
+      <label>تلفن</label>
+      {{ form.phone }}
+
+      <label>آدرس</label>
+      {{ form.address }}
+    </div>
+
+    <button type="submit" class="save">ذخیره تنظیمات</button>
+  </form>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/settings.js' %}"></script>
+{% endblock %}

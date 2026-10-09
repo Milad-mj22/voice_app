@@ -1,0 +1,52 @@
+<!doctype html>
+<html dir="rtl"><head><meta charset="utf-8"><title>تست WebSocket</title></head>
+<body>
+<h3>تست WebSocket دستیار مرداس</h3>
+<button id="btn">🎤 نگه دار و صحبت کن</button>
+<pre id="log" style="background:#eee;padding:10px;direction:ltr;text-align:left"></pre>
+
+<script>
+const log = (m) => document.getElementById("log").textContent += m + "\n";
+let ws, recorder, chunks = [];
+
+// برای تست، از کوکی سشن استفاده می‌کنیم → باید لاگین باشی
+ws = new WebSocket(`ws://localhost:8000/ws/voice/`);
+
+ws.onopen = () => log("✅ WS باز شد");
+ws.onclose = (e) => log("❌ WS بسته شد: " + e.code);
+ws.onerror = (e) => log("⚠️ خطا: " + e.message);
+ws.onmessage = (e) => {
+  const m = JSON.parse(e.data);
+  log("← " + JSON.stringify(m).slice(0, 200));
+  if (m.type === "reply_audio") {
+    const bytes = Uint8Array.from(atob(m.data), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: "audio/mpeg" });
+    new Audio(URL.createObjectURL(blob)).play();
+  }
+};
+
+const btn = document.getElementById("btn");
+
+btn.onmousedown = async () => {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+  chunks = [];
+  recorder.ondataavailable = async (e) => {
+    if (e.data.size === 0) return;
+    const buf = await e.data.arrayBuffer();
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+    ws.send(JSON.stringify({ type: "audio", data: b64 }));
+  };
+  ws.send(JSON.stringify({ type: "start" }));
+  recorder.start(250);
+  log("🎤 ضبط شروع شد");
+};
+
+btn.onmouseup = () => {
+  recorder?.stop();
+  recorder?.stream.getTracks().forEach(t => t.stop());
+  ws.send(JSON.stringify({ type: "stop" }));
+  log("⏹ ضبط متوقف شد");
+};
+</script>
+</body></html>

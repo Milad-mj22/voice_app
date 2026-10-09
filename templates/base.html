@@ -1,0 +1,166 @@
+{% load static %}
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="{{ business.brand_color|default:'#2563eb' }}">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>{% block title %}اتاق فرمان {{ business.name|default:"مرداس" }}{% endblock %}</title>
+
+<!-- فونت وزیرمتن -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+
+<!-- آیکون‌ها -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css">
+
+<!-- استایل اپ -->
+<link rel="stylesheet" href="{% static 'css/app.css' %}">
+{% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<!-- ═══════════════ Drawer Menu (منوی کشویی) ═══════════════ -->
+<div id="drawerOverlay" class="drawer-overlay" onclick="closeDrawer()"></div>
+<aside id="drawer" class="drawer">
+  <div class="drawer-head">
+    <div class="drawer-brand">
+      {% if business.logo %}
+        <img src="{{ business.logo.url }}" alt="لوگو" class="drawer-logo">
+      {% else %}
+        <div class="drawer-logo drawer-logo-fallback">⚡</div>
+      {% endif %}
+      <div>
+        <b>{{ business.name|default:"مرداس" }}</b>
+        <small>{{ user.get_full_name|default:user.username }}</small>
+      </div>
+    </div>
+  </div>
+
+  <nav class="drawer-nav">
+    <a href="/" class="drawer-item {% if request.path == '/' %}active{% endif %}">
+      <i class="ri-dashboard-3-line"></i><span>اتاق فرمان</span>
+    </a>
+    <a href="/reports/" class="drawer-item {% if '/reports' in request.path %}active{% endif %}">
+      <i class="ri-bar-chart-box-line"></i><span>گزارش‌ها</span>
+    </a>
+
+    <div class="drawer-sep">ماژول‌ها</div>
+
+    <a href="#" data-open-type="customer" class="drawer-item">
+      <i class="ri-user-3-line"></i><span>مشتریان</span>
+    </a>
+    <a href="#" data-open-type="project" class="drawer-item">
+      <i class="ri-building-2-line"></i><span>پروژه‌ها</span>
+    </a>
+    <a href="#" data-open-type="opportunity" class="drawer-item">
+      <i class="ri-line-chart-line"></i><span>فرصت فروش</span>
+    </a>
+    <a href="#" data-open-type="task" class="drawer-item">
+      <i class="ri-pushpin-line"></i><span>پیگیری‌ها</span>
+    </a>
+    <a href="#" data-open-type="finance" class="drawer-item">
+      <i class="ri-money-dollar-circle-line"></i><span>مالی</span>
+    </a>
+    <a href="#" data-open-type="supplier" class="drawer-item">
+      <i class="ri-truck-line"></i><span>تأمین‌کنندگان</span>
+    </a>
+    <a href="#" data-open-type="colleague" class="drawer-item">
+      <i class="ri-team-line"></i><span>همکاران</span>
+    </a>
+
+    <div class="drawer-sep">مدیریت</div>
+
+    {% if user.role == "owner" or user.role == "admin" %}
+    <a href="{% url 'accounts_settings' %}" class="drawer-item">
+      <i class="ri-settings-3-line"></i><span>تنظیمات کسب‌وکار</span>
+    </a>
+    <a href="{% url 'accounts_users' %}" class="drawer-item">
+      <i class="ri-group-line"></i><span>کاربران</span>
+    </a>
+    {% endif %}
+    <a href="{% url 'accounts_profile' %}" class="drawer-item">
+      <i class="ri-account-circle-line"></i><span>پروفایل من</span>
+    </a>
+    <a href="{% url 'logout' %}" class="drawer-item drawer-item-danger">
+      <i class="ri-logout-box-line"></i><span>خروج</span>
+    </a>
+  </nav>
+</aside>
+
+<!-- ═══════════════ Top App Bar ═══════════════ -->
+<header class="appbar">
+  <button class="appbar-btn" onclick="openDrawer()" aria-label="منو">
+    <i class="ri-menu-line"></i>
+  </button>
+
+  <div class="appbar-title">
+    {% block appbar_title %}{{ business.name|default:"اتاق فرمان" }}{% endblock %}
+  </div>
+
+  <button class="appbar-btn" onclick="focusSearch()" aria-label="جستجو">
+    <i class="ri-search-line"></i>
+  </button>
+</header>
+
+<!-- جستجوی سراسری (کشویی از بالا) -->
+<div id="searchBar" class="search-bar">
+  <div class="search-input-wrap">
+    <i class="ri-search-line"></i>
+    <input id="search" type="search" placeholder="جست‌وجو در مشتری، پروژه، یادداشت...">
+    <button class="search-close" onclick="closeSearch()">
+      <i class="ri-close-line"></i>
+    </button>
+  </div>
+  <div id="searchResults" class="search-results"></div>
+</div>
+
+<!-- ═══════════════ محتوا ═══════════════ -->
+<main class="app-main">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- ═══════════════ Bottom Nav ═══════════════ -->
+<nav class="bottom-nav">
+  <a href="/" class="bnav-item {% if request.path == '/' %}active{% endif %}">
+    <i class="ri-home-4-line"></i><span>خانه</span>
+  </a>
+  <a href="#" onclick="openType('customer'); return false;" class="bnav-item">
+    <i class="ri-user-3-line"></i><span>مشتری</span>
+  </a>
+
+  <!-- دکمه دستیار صوتی (وسط) -->
+  <button class="bnav-fab" onclick="openVoice()" aria-label="دستیار صوتی">
+    <i class="ri-mic-line"></i>
+  </button>
+
+  <a href="/reports/" class="bnav-item {% if '/reports' in request.path %}active{% endif %}">
+    <i class="ri-bar-chart-box-line"></i><span>گزارش</span>
+  </a>
+  <button class="bnav-item" onclick="openDrawer()">
+    <i class="ri-apps-2-line"></i><span>بیشتر</span>
+  </button>
+</nav>
+
+<!-- ═══════════════ مودال صوتی ═══════════════ -->
+{% include "partials/voice_modal.html" %}
+
+<!-- ═══════════════ فایل‌های JS ═══════════════ -->
+<script>
+window.BUSINESS = {
+  id: {{ business.id|default:"null" }},
+  name: "{{ business.name|default:''|escapejs }}",
+  slug: "{{ business.slug|default:''|escapejs }}",
+  color: "{{ business.brand_color|default:'#2563eb' }}",
+};
+window.CSRF_TOKEN = "{{ csrf_token }}";
+</script>
+<script src="{% static 'js/recorder.js' %}"></script>
+<script src="{% static 'js/voice.js' %}"></script>
+<script src="{% static 'js/app.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,28 @@
+<div id="voiceModal" class="voice-modal" onclick="if(event.target === this) closeVoice()">
+  <div class="voice-panel">
+    <div class="voice-drag"></div>
+
+    <div class="voice-head">
+      <h3><i class="ri-mic-line" style="color:var(--brand)"></i> دستیار صوتی مرداس</h3>
+      <button class="voice-close" onclick="closeVoice()">
+        <i class="ri-close-line"></i>
+      </button>
+    </div>
+
+    <div class="voice-status" id="voiceStatus">
+      دکمه رو نگه دار و صحبت کن
+    </div>
+
+    <div class="voice-record-wrap">
+      <button id="voiceRecordBtn" class="voice-record-btn">
+        <i class="ri-mic-line"></i>
+      </button>
+    </div>
+
+    <div class="voice-log" id="voiceLog">
+      <div class="voice-line voice-line-empty">
+        اینجا گفتگو نمایش داده می‌شه…
+      </div>
+    </div>
+  </div>
+</div>

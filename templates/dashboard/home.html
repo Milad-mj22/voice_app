@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}اتاق فرمان — {{ business.name }}{% endblock %}
+
+{% block content %}
+
+<!-- ═══ KPI Cards ═══ -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-icon blue"><i class="ri-user-3-line"></i></div>
+    <div class="kpi-num">{{ stats.customers_total }}</div>
+    <div class="kpi-label">مشتری کل</div>
+    {% if stats.customers_new_week %}
+      <div class="kpi-trend">
+        <i class="ri-arrow-up-line"></i>
+        {{ stats.customers_new_week }} این هفته
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-icon green"><i class="ri-building-2-line"></i></div>
+    <div class="kpi-num">{{ stats.projects_active }}</div>
+    <div class="kpi-label">پروژه فعال</div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-icon amber"><i class="ri-line-chart-line"></i></div>
+    <div class="kpi-num">{{ stats.opportunities_open }}</div>
+    <div class="kpi-label">فرصت فروش باز</div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-icon purple"><i class="ri-pushpin-line"></i></div>
+    <div class="kpi-num">{{ stats.tasks_open }}</div>
+    <div class="kpi-label">پیگیری باز</div>
+    {% if stats.tasks_overdue %}
+      <div class="kpi-trend down">
+        <i class="ri-alert-line"></i>
+        {{ stats.tasks_overdue }} عقب‌افتاده
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ═══ ماژول‌ها ═══ -->
+<div class="section-head">
+  <h2>ماژول‌های کسب‌وکار</h2>
+</div>
+
+<div class="modules-grid">
+  <button class="module" onclick="openType('customer')">
+    <div class="module-icon mi-blue"><i class="ri-user-3-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">مشتریان</div>
+      <div class="module-count">{{ stats.customers_total }} مورد</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('project')">
+    <div class="module-icon mi-green"><i class="ri-building-2-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">پروژه‌ها</div>
+      <div class="module-count">{{ stats.projects_active }} فعال</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('opportunity')">
+    <div class="module-icon mi-amber"><i class="ri-line-chart-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">فرصت فروش</div>
+      <div class="module-count">{{ stats.opportunities_open }} باز</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('task')">
+    <div class="module-icon mi-purple"><i class="ri-pushpin-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">پیگیری‌ها</div>
+      <div class="module-count">{{ stats.tasks_open }} باز</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('finance')">
+    <div class="module-icon mi-cyan"><i class="ri-money-dollar-circle-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">مالی</div>
+      <div class="module-count">{{ stats.income|floatformat:0 }} درآمد</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('supplier')">
+    <div class="module-icon mi-indigo"><i class="ri-truck-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">تأمین‌کنندگان</div>
+      <div class="module-count">مدیریت</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('colleague')">
+    <div class="module-icon mi-pink"><i class="ri-team-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">همکاران</div>
+      <div class="module-count">{{ stats.colleagues }} نفر</div>
+    </div>
+  </button>
+
+  <button class="module" onclick="openType('strategy')">
+    <div class="module-icon mi-red"><i class="ri-focus-3-line"></i></div>
+    <div class="module-body">
+      <div class="module-title">استراتژی</div>
+      <div class="module-count">اهداف و چشم‌انداز</div>
+    </div>
+  </button>
+</div>
+
+<!-- ═══ مالی ═══ -->
+<div class="section-head">
+  <h2>خلاصه مالی</h2>
+  <a href="/reports/">گزارش کامل ←</a>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-icon green"><i class="ri-arrow-down-line"></i></div>
+    <div class="kpi-num" style="font-size: 18px">{{ stats.income|floatformat:0 }}</div>
+    <div class="kpi-label">درآمد (تومان)</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-icon red"><i class="ri-arrow-up-line"></i></div>
+    <div class="kpi-num" style="font-size: 18px">{{ stats.expense|floatformat:0 }}</div>
+    <div class="kpi-label">هزینه (تومان)</div>
+  </div>
+</div>
+
+<!-- ═══ قیف فروش ═══ -->
+<div class="section-head">
+  <h2>قیف فروش</h2>
+</div>
+
+<div class="pipeline">
+  {% for p in pipeline %}
+    <div class="pipeline-row">
+      <span class="pipeline-stage">{{ p.stage }}</span>
+      <div class="pipeline-bar-wrap">
+        <div class="pipeline-bar" style="width: {{ p.percent }}%"></div>
+      </div>
+      <span class="pipeline-count">{{ p.count }}</span>
+    </div>
+  {% empty %}
+    <div class="empty-state">
+      <i class="ri-filter-3-line"></i>
+      <p>هنوز فرصتی ثبت نشده</p>
+    </div>
+  {% endfor %}
+</div>
+
+<!-- ═══ پیگیری امروز ═══ -->
+<div class="section-head">
+  <h2>پیگیری‌های امروز</h2>
+  <a href="#" onclick="openType('task')">همه ←</a>
+</div>
+
+<div class="today-list">
+  {% for t in today_tasks %}
+    <div class="today-item">
+      <div class="today-check {% if t.is_done %}done{% endif %}">
+        <i class="ri-check-line"></i>
+      </div>
+      <div class="today-body">
+        <div class="today-title">{{ t.title }}</div>
+        <div class="today-meta">{{ t.due_date|date:"Y/m/d" }}</div>
+      </div>
+      <span class="today-priority priority-{{ t.priority_class }}">{{ t.priority }}</span>
+    </div>
+  {% empty %}
+    <div class="empty-state">
+      <i class="ri-calendar-check-line"></i>
+      <p>امروز پیگیری‌ای نداری</p>
+    </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

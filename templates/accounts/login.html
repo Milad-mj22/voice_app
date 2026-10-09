@@ -1,0 +1,43 @@
+{% load static %}
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ورود به مرداس</title>
+<link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">⚡</div>
+    <h1>اتاق فرمان مرداس</h1>
+    <p class="auth-sub">به پنل مدیریت کسب‌وکار خود وارد شوید</p>
+
+    {% if form.errors %}
+      <div class="alert alert-error">نام کاربری یا رمز عبور اشتباه است.</div>
+    {% endif %}
+    {% if messages %}
+      {% for m in messages %}
+        <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <label>نام کاربری</label>
+      <input name="username" class="form-input" required autofocus dir="ltr">
+
+      <label>رمز عبور</label>
+      <input name="password" type="password" class="form-input" required dir="ltr">
+
+      <button type="submit" class="btn-primary">ورود</button>
+    </form>
+
+    <div class="auth-footer">
+      حساب ندارید؟ <a href="{% url 'register' %}">ثبت‌نام کسب‌وکار جدید</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>

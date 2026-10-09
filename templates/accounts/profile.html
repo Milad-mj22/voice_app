@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}پروفایل من{% endblock %}
+
+{% block content %}
+<section class="panel show">
+  <a href="/" class="back">← بازگشت به اتاق فرمان</a>
+  <h2>👤 پروفایل من</h2>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <h3>اطلاعات شخصی</h3>
+  <form method="post" class="settings-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="profile">
+    <div class="form-row">
+      <div>
+        <label>نام</label>
+        {{ profile_form.first_name }}
+      </div>
+      <div>
+        <label>نام خانوادگی</label>
+        {{ profile_form.last_name }}
+      </div>
+    </div>
+    <label>ایمیل</label>
+    {{ profile_form.email }}
+    <label>موبایل</label>
+    {{ profile_form.phone }}
+    <button type="submit" class="save">ذخیره پروفایل</button>
+  </form>
+
+  <hr style="margin:30px 0">
+
+  <h3>تغییر رمز عبور</h3>
+  <form method="post" class="settings-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="password">
+    <label>رمز فعلی</label>
+    {{ password_form.old_password }}
+    <label>رمز جدید</label>
+    {{ password_form.new_password1 }}
+    <label>تکرار رمز جدید</label>
+    {{ password_form.new_password2 }}
+    <button type="submit" class="save">تغییر رمز</button>
+  </form>
+</section>
+{% endblock %}

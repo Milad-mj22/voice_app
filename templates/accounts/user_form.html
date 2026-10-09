@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<section class="panel show">
+  <a href="{% url 'accounts_users' %}" class="back">← بازگشت به کاربران</a>
+  <h2>{{ title }}</h2>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" class="settings-form">
+    {% csrf_token %}
+    <label>نام کاربری</label>
+    {{ form.username }}
+
+    <div class="form-row">
+      <div>
+        <label>نام</label>
+        {{ form.first_name }}
+      </div>
+      <div>
+        <label>نام خانوادگی</label>
+        {{ form.last_name }}
+      </div>
+    </div>
+
+    <label>ایمیل</label>
+    {{ form.email }}
+
+    <label>موبایل</label>
+    {{ form.phone }}
+
+    <label>نقش</label>
+    {{ form.role }}
+
+    <label>رمز عبور {% if edit_user %}(برای تغییر پر کن){% endif %}</label>
+    {{ form.password }}
+
+    <button type="submit" class="save">ذخیره</button>
+  </form>
+</section>
+{% endblock %}

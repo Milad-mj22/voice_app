@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}گزارش‌ها — {{ business.name }}{% endblock %}
+{% block appbar_title %}گزارش‌ها{% endblock %}
+
+{% block content %}
+
+<!-- ═══ فیلتر بازه ═══ -->
+<div class="filter-chips" id="filterChips">
+  <button class="chip active" data-range="7">۷ روز اخیر</button>
+  <button class="chip" data-range="30">۳۰ روز اخیر</button>
+  <button class="chip" data-range="90">۳ ماه اخیر</button>
+  <button class="chip" data-range="365">امسال</button>
+</div>
+
+<!-- ═══ KPI ═══ -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-icon blue"><i class="ri-user-3-line"></i></div>
+    <div class="kpi-num" id="kpiCustomers">—</div>
+    <div class="kpi-label">مشتری کل</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-icon green"><i class="ri-building-2-line"></i></div>
+    <div class="kpi-num" id="kpiProjects">—</div>
+    <div class="kpi-label">پروژه فعال</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-icon amber"><i class="ri-line-chart-line"></i></div>
+    <div class="kpi-num" id="kpiOpps">—</div>
+    <div class="kpi-label">فرصت باز</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-icon purple"><i class="ri-pushpin-line"></i></div>
+    <div class="kpi-num" id="kpiTasks">—</div>
+    <div class="kpi-label">پیگیری باز</div>
+  </div>
+</div>
+
+<!-- ═══ خلاصه مالی ═══ -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-icon green"><i class="ri-arrow-down-line"></i></div>
+    <div class="kpi-num" style="font-size:18px" id="kpiIncome">—</div>
+    <div class="kpi-label">درآمد (تومان)</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-icon red"><i class="ri-arrow-up-line"></i></div>
+    <div class="kpi-num" style="font-size:18px" id="kpiExpense">—</div>
+    <div class="kpi-label">هزینه (تومان)</div>
+  </div>
+</div>
+
+<!-- ═══ نمودار قیف فروش ═══ -->
+<div class="chart-card" style="margin-top:14px">
+  <h3><i class="ri-filter-3-line"></i> قیف فروش</h3>
+  <div class="chart-wrap"><canvas id="chartPipeline"></canvas></div>
+</div>
+
+<!-- ═══ نمودار روند مالی ═══ -->
+<div class="chart-card">
+  <h3><i class="ri-line-chart-line"></i> روند مالی ۶ ماه</h3>
+  <div class="chart-wrap"><canvas id="chartFinance"></canvas></div>
+</div>
+
+<!-- ═══ نمودار توزیع مشتری ═══ -->
+<div class="chart-card">
+  <h3><i class="ri-pie-chart-2-line"></i> توزیع مشتریان</h3>
+  <div class="chart-wrap" style="height:240px"><canvas id="chartCustomers"></canvas></div>
+</div>
+
+<!-- ═══ نمودار فعالیت هفتگی ═══ -->
+<div class="chart-card">
+  <h3><i class="ri-calendar-line"></i> فعالیت ۷ روز اخیر</h3>
+  <div class="chart-wrap"><canvas id="chartWeekly"></canvas></div>
+</div>
+
+<!-- ═══ جدول مشتریان برتر ═══ -->
+<div class="chart-card">
+  <h3><i class="ri-trophy-line"></i> مشتریان برتر</h3>
+  <div id="topCustomersWrap">
+    <div class="empty-state">
+      <i class="ri-loader-4-line"></i>
+      <p>در حال بارگذاری...</p>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/reports.js' %}"></script>
+{% endblock %}
