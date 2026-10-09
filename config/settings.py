@@ -11,12 +11,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-insecure-key")
 DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
+
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "assistant.mykaman.ir",
     "www.assistant.mykaman.ir",   # ⭐ اضافه کن
 ]
+
 
 CSRF_TRUSTED_ORIGINS = [
     "https://assistant.mykaman.ir",
