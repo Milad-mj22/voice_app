@@ -63,9 +63,7 @@ def voice_api(request):
     ext = _detect_extension(audio_file)
     filename = f"voice.{ext}"
 
-    print(f">>> voice_api: orig_name={audio_file.name} ct={audio_file.content_type} "
-          f"ext={ext} size={len(audio_bytes)}")
-
+    _safe_print(f">>> voice_api: orig_name={audio_file.name} ct={audio_file.content_type} ext={ext} size={len(audio_bytes)}")
     # ═══ STT ═══
     try:
         from asgiref.sync import async_to_sync
@@ -79,7 +77,7 @@ def voice_api(request):
         # ⭐ نرمال‌سازی متن
         transcript = normalize_persian_text(transcript)
 
-        print(f">>> voice_api: normalized = {transcript}")
+        logger.info(f">>> voice_api: normalized = {transcript!r}")
 
 
 
@@ -154,3 +152,20 @@ def _save_log(business, user, transcript="", reply="", actions=None,
         )
     except Exception:
         logger.exception("VoiceLog save failed")
+
+
+
+
+# بالا اضافه کن
+import sys
+
+
+def _safe_print(msg):
+    """چاپ امن برای cPanel (که ascii رو تحمیل می‌کنه)"""
+    try:
+        print(msg)
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        try:
+            print(msg.encode("utf-8", errors="replace").decode("ascii", errors="replace"))
+        except Exception:
+            pass
