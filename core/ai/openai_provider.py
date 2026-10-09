@@ -11,9 +11,6 @@ from .base import BaseSTT, BaseTTS, BaseLLM
 from .exceptions import STTError, TTSError, LLMError
 
 
-# ═══════════════════════════════════════════════
-# کلاینت context-manager (هر بار ساخته می‌شه، بسته می‌شه)
-# ═══════════════════════════════════════════════
 @asynccontextmanager
 async def _client():
     client = AsyncOpenAI(api_key=settings.AI_CONFIG["OPENAI_API_KEY"])
@@ -51,14 +48,8 @@ class OpenAI_STT(BaseSTT):
                     model=settings.AI_CONFIG["STT_MODEL"],
                     file=audio_file,
                     language=language,
-                    prompt=(
-                        "این یک دستور صوتی برای سیستم مدیریت کسب‌وکار است. "
-                        "شماره‌های تلفن به فارسی گفته می‌شن: صفر، یک، دو، سه، چهار، پنج، شش، هفت، هشت، نُه. "
-                        "مثال: «صفر نه یک دو سه چهار پنج شش هفت هشت نه» = 09123456789. "
-                        "اعداد را حتماً به رقم بنویس، نه به حروف. "
-                        "کلمات رایج: مشتری، پروژه، فرصت فروش، پیگیری، مالی، شماره تماس، "
-                        "تلفن، موبایل، شرکت، ثبت، اضافه، گزارش."
-                    ),
+                    # ⭐ prompt کوتاه — Whisper رو گیج نمی‌کنه
+                    prompt="دستور صوتی فارسی برای مدیریت کسب‌وکار.",
                     response_format="text",
                     temperature=0,
                 )
@@ -113,10 +104,7 @@ class OpenAI_LLM(BaseLLM):
                 response = await client.chat.completions.create(**kwargs)
                 msg = response.choices[0].message
 
-                result = {
-                    "content": msg.content or "",
-                    "tool_calls": [],
-                }
+                result = {"content": msg.content or "", "tool_calls": []}
 
                 if msg.tool_calls:
                     for tc in msg.tool_calls:

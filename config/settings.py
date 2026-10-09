@@ -142,7 +142,7 @@ AI_CONFIG = {
     "TTS_PROVIDER": "openai",
     "LLM_PROVIDER": "openai",
     "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", ""),
-    "STT_MODEL": "whisper-1",
+    "STT_MODEL": "gpt-4o-transcribe",   # دقیق‌تر ولی گرون‌تر
     "LLM_MODEL": "gpt-4o",
     "TTS_MODEL": "tts-1",
     "TTS_VOICE": "nova",
