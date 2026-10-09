@@ -4720,3 +4720,194 @@ RuntimeError: Event loop is closed
 >>> voice_api: orig_name=voice.webm ct=audio/webm ext=webm size=74989
 >>> voice_api: orig_name=voice.webm ct=audio/webm ext=webm size=119190
 >>> voice_api: orig_name=voice.webm ct=audio/webm ext=webm size=136785
+/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/db/models/fields/__init__.py:1600: RuntimeWarning: DateTimeField Customer.created_at received a naive datetime (2026-10-02 00:00:00) while time zone support is active.
+  warnings.warn(
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 82, in voice_api
+    print(f">>> voice_api: normalized = {transcript}")
+UnicodeEncodeError: 'ascii' codec can't encode character '\ufffd' in position 137: ordinal not in range(128)
+Internal Server Error: /api/voice/
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 82, in voice_api
+    print(f">>> voice_api: normalized = {transcript}")
+UnicodeEncodeError: 'ascii' codec can't encode characters in position 28-31: ordinal not in range(128)
+Internal Server Error: /api/voice/
+Not Found: /favicon.ico
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 82, in voice_api
+    print(f">>> voice_api: normalized = {transcript}")
+UnicodeEncodeError: 'ascii' codec can't encode character '\ufffd' in position 137: ordinal not in range(128)
+Internal Server Error: /api/voice/
+Task exception was never retrieved
+future: <Task finished name='Task-20' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-21' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-22' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-23' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Task exception was never retrieved
+future: <Task finished name='Task-24' coro=<AsyncClient.aclose() done, defined at /home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py:2011> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_client.py", line 2018, in aclose
+    await self._transport.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpx/_transports/default.py", line 385, in aclose
+    await self._pool.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 353, in aclose
+    await self._close_connections(closing_connections)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection_pool.py", line 345, in _close_connections
+    await connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/connection.py", line 173, in aclose
+    await self._connection.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_async/http11.py", line 258, in aclose
+    await self._network_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/httpcore/_backends/anyio.py", line 53, in aclose
+    await self._stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/streams/tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/selector_events.py", line 706, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/opt/alt/python310/lib64/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+STT error
+Traceback (most recent call last):
+  File "/home/mykamani/voice_app/apps/voice/views.py", line 82, in voice_api
+    print(f">>> voice_api: normalized = {transcript}")
+UnicodeEncodeError: 'ascii' codec can't encode character '\ufffd' in position 137: ordinal not in range(128)
+Internal Server Error: /api/voice/
+Invalid HTTP_HOST header: 'www.assistant.mykaman.ir'. You may need to add 'www.assistant.mykaman.ir' to ALLOWED_HOSTS.
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/utils/deprecation.py", line 133, in __call__
+    response = self.process_request(request)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/middleware/common.py", line 48, in process_request
+    host = request.get_host()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/http/request.py", line 151, in get_host
+    raise DisallowedHost(msg)
+django.core.exceptions.DisallowedHost: Invalid HTTP_HOST header: 'www.assistant.mykaman.ir'. You may need to add 'www.assistant.mykaman.ir' to ALLOWED_HOSTS.
+Bad Request: /
+Invalid HTTP_HOST header: 'www.assistant.mykaman.ir'. You may need to add 'www.assistant.mykaman.ir' to ALLOWED_HOSTS.
+Traceback (most recent call last):
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/utils/deprecation.py", line 133, in __call__
+    response = self.process_request(request)
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/middleware/common.py", line 48, in process_request
+    host = request.get_host()
+  File "/home/mykamani/virtualenv/voice_app/3.10/lib/python3.10/site-packages/django/http/request.py", line 151, in get_host
+    raise DisallowedHost(msg)
+django.core.exceptions.DisallowedHost: Invalid HTTP_HOST header: 'www.assistant.mykaman.ir'. You may need to add 'www.assistant.mykaman.ir' to ALLOWED_HOSTS.
+Bad Request: /

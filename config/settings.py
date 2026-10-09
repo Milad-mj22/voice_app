@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-insecure-key")
 DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "assistant.mykaman.ir"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "assistant.mykaman.ir","www.assistant.mykaman.ir"]
 CSRF_TRUSTED_ORIGINS = [
     f"https://{os.getenv('SITE_DOMAIN', 'merdas.mykaman.ir')}",
     "http://localhost:8000",
