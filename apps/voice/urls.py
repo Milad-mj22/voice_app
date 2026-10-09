@@ -1,5 +1,6 @@
 from django.urls import path
+from . import views
 
 urlpatterns = [
-    # APIهای REST اگر لازم شد
+    path("api/voice/", views.voice_api, name="voice_api"),
 ]
