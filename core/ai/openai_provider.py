@@ -25,31 +25,39 @@ class OpenAI_STT(BaseSTT):
             audio_bytes, filename="voice.webm", language=language
         )
 
+
+
     async def transcribe_with_filename(
         self,
         audio_bytes: bytes,
         filename: str = "voice.webm",
         language: str = "fa",
     ) -> str:
-        """
-        با نام فایل مشخص — برای پشتیبانی از فرمت‌های iOS (m4a, mp4)
-        """
         try:
             client = _client()
             audio_file = io.BytesIO(audio_bytes)
             audio_file.name = filename
 
             response = await client.audio.transcriptions.create(
-                model=settings.AI_CONFIG["STT_MODEL"],   # whisper-1
+                model=settings.AI_CONFIG["STT_MODEL"],
                 file=audio_file,
                 language=language,
+                # ⭐ کلید هوشمندی: به Whisper بگو چه کلماتی ممکنه بشنوی
+                prompt=(
+                    "این یک دستور صوتی برای سیستم مدیریت کسب‌وکار برق مرداس است. "
+                    "کلمات رایج: مشتری، پروژه، فرصت فروش، پیگیری، مالی، درآمد، هزینه، "
+                    "شماره تماس، شرکت، قرارداد، فاکتور، جلسه، تماس، یادآوری، گزارش. "
+                    "نام‌های فارسی مثل: علی، رضایی، محمدی، احمدی، حسینی. "
+                    "دستوراتی مثل: ثبت کن، اضافه کن، پیگیری کن، گزارش بده، نشون بده."
+                ),
                 response_format="text",
+                temperature=0,   # ⭐ خروجی دقیق‌تر
             )
-            # response گاهی رشته‌ست، گاهی آبجکت
             text = response if isinstance(response, str) else response.text
             return (text or "").strip()
         except Exception as exc:
             raise STTError(f"خطا در تبدیل صدا به متن: {exc}") from exc
+
 
 
 # ═══════════════════════════════════════════════

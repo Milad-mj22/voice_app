@@ -45,6 +45,9 @@ class VoiceRecorder {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true,      // ⭐ جدید — صدای ضعیف رو تقویت می‌کنه
+          sampleRate: 16000,           // ⭐ Whisper با 16kHz بهتر کار می‌کنه
+          channelCount: 1,             // ⭐ مونو
         }
       });
     } catch (err) {
